@@ -4,11 +4,15 @@
 
 import hid
 
+VID_NIKE        = 0x11ac
+PID_FUELBAND    = 0x6565
+PID_FUELBAND_SE = 0x317d
+
 class Fuelband():
     def __init__(self):
 
-        fuelband_vendor = 0x11ac
-        fuelband_product = 0x6565
+        fuelband_vendor = VID_NIKE
+        fuelband_product = PID_FUELBAND
 
         try:
             #print('Opening fuelband')
@@ -72,12 +76,13 @@ class Fuelband():
         cmd_prefix = [0x01, len(cmd) + 1, 0x07]
         cmd = cmd_prefix + cmd
 
-        if verbose: self.print_hex(cmd)
+        if verbose: print("cmd: %s" % (self.to_hex(cmd)))
         res = self.device.send_feature_report(cmd)
         if res <= 0: print('Error sending feature report')
 
         buf = self.device.get_feature_report(0x01, 64)
-        if verbose: self.print_hex(buf)
+        if verbose: print("rsp (hex):   %s" % (self.to_hex(buf)))
+        if verbose: print("rsp (ascii): %s" % (self.to_ascii(buf)))
 
         if len(buf) > 3:
             buf = buf[3:]
@@ -114,6 +119,16 @@ class Fuelband():
             self.protocol_version = '%d' % buf[0]
         else:
             self.protocol_version = 'None'
+
+    def doFactoryReset(self):
+        buf = self.send([0x02])
+        if len(buf) == 1 and buf[0] == 0x00:
+            print('Factory reset SUCCESS!')
+        else:
+            print('Factory reset FAILED!')
+
+    def doSaveUserSettings(self):
+        buf = self.send([0x30])
 
     def doStatus(self):
         buf = self.send([0xdf])

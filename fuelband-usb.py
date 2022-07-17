@@ -4,6 +4,7 @@
 # https://github.com/trezor/cython-hidapi
 
 import sys
+import time
 from fuelband import *
 
 fb = Fuelband()
@@ -63,6 +64,35 @@ if len(sys.argv) > 1:
                     f.write(bytes(dump))
             #fb.print_hex(dump)
             #fb.print_ascii(dump)
+    elif sys.argv[1] == 'factory_reset':
+        fb.doFactoryReset()
+    elif sys.argv[1] == 'scan_cmds':
+        for cmd in range(255):
+            if cmd == 0x02:
+                # skip factory reset
+                continue
+            elif cmd == 0x0b:
+                # send error
+                continue
+            elif cmd == 0x14:
+                # send error and OS read error
+                continue
+            elif cmd == 0xdf:
+                # send error
+                continue
+
+            try:
+                print("Sending command 0x%02X..." % (cmd))
+                res = fb.send([cmd],True)
+                fb.dumpLog()
+                if len(fb.log) > 0:
+                    print("======== begin log ========")
+                    print(fb.log)
+                    print("========= end log =========")
+                    fb.log = ''
+            except OSError as os_error:
+                print("  INVALID! (os_error = %s)" % (cmd,str(os_error)))
+                exit(-1)
 
 
 
