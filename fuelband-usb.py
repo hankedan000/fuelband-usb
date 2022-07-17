@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 
 # requires hidapi:
 # https://github.com/trezor/cython-hidapi
