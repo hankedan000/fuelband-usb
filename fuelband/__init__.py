@@ -72,7 +72,7 @@ class Fuelband():
     def intFromLittleEndian(self, buf):
         t_num = 0
         for i in range(len(buf)):
-            t_num += buf[len(buf) - i - 1] * 0xff**i
+            t_num = t_num | (buf[len(buf) - i - 1] << (i * 8))
         return t_num
 
 
