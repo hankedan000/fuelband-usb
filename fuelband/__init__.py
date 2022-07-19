@@ -8,6 +8,9 @@ VID_NIKE        = 0x11ac
 PID_FUELBAND    = 0x6565
 PID_FUELBAND_SE = 0x317d
 
+GOAL_TYPE_A = 0x00
+GOAL_TYPE_B = 0x01
+
 class Fuelband():
     def __init__(self):
 
@@ -36,6 +39,8 @@ class Fuelband():
         self.model_number = ''
         self.serial_number = ''
         self.hardware_revision = ''
+        self.goal_a = None# 16bit fuel goal
+        self.goal_b = None# 16bit fuel goal
 
 
 
@@ -72,8 +77,14 @@ class Fuelband():
 
 
     def send(self, cmd, verbose=False):
+        # seems to be something that can get 'wrapped' backed in the
+        # response packets... kinda of like a sequence id? initially i
+        # i see them incrementing this number for each transaction from
+        # the Nike+ Connect app, but eventually that stops, and it just
+        # becomes nonsense.
+        tag = 0x07
 
-        cmd_prefix = [0x01, len(cmd) + 1, 0x07]
+        cmd_prefix = [0x01, len(cmd) + 1, tag]
         cmd = cmd_prefix + cmd
 
         if verbose: print("cmd: %s" % (self.to_hex(cmd)))
@@ -179,7 +190,19 @@ class Fuelband():
             else:
                 self.battery_mode = 'unknown %s' % self.to_hex(buf[1])
 
-
+    def doGoal(self, goal_type=GOAL_TYPE_A):
+        buf = self.send([0x25, goal_type])
+        if len(buf) <= 0:
+            print('Error getting goal: ', end='')
+            self.print_hex(buf)
+        else:
+            if goal_type == GOAL_TYPE_A:
+                self.goal_a = self.intFromLittleEndian(buf[1:3])
+            elif goal_type == GOAL_TYPE_B:
+                self.goal_b = self.intFromLittleEndian(buf[1:3])
+            else:
+                print('Error invalid goal_type: ', end='')
+                self.print_hex(buf)
 
     def doTimeStampDeviceInit(self):
         buf = self.send([0x42, 0x01])

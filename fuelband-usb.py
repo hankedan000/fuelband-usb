@@ -33,6 +33,12 @@ if len(sys.argv) > 1:
         fb.doBattery()
         print('Battery status: %d%% charged, %dmV, %s' % (fb.battery_percent, fb.battery_mv, fb.battery_mode))
 
+        fb.doGoal(GOAL_TYPE_A)
+        print('Goal A: %d' % (fb.goal_a))
+
+        fb.doGoal(GOAL_TYPE_B)
+        print('Goal B: %d' % (fb.goal_b))
+
         fb.doModelNumber()
         print('Model number: %s' % fb.model_number)
 
@@ -108,7 +114,7 @@ else:
     dump = fb.dumpMemory([0x50, 0x37, 0x36], 280)
 
     # workout data
-    #dump = fb.dumpMemory([0x19])
+    # dump = fb.dumpMemory([0x19])
 
     #dump = fb.dumpMemory([0x54, 0x37, 0x03])
     fb.print_hex(dump)
