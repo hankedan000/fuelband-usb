@@ -13,7 +13,7 @@ if fb == None:
     print("No fuelband devices found")
     exit(-1)
 
-print('opened %s' % (type(fb)))
+print('opened %s' % (fb.getModelNumber()))
 
 if len(sys.argv) > 1:
     if sys.argv[1] == 'log':

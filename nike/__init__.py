@@ -19,7 +19,6 @@ class FuelbandBase():
         self.firmware_version = ''
         self.network_version = ''
         self.protocol_version = 'None'
-        self.model_number = ''
         self.serial_number = ''
         self.hardware_revision = ''
 
@@ -108,13 +107,13 @@ class Fuelband(FuelbandBase):
         else:
             self.status_bytes = buf
 
-    def doModelNumber(self):
+    def getModelNumber(self):
         buf = self.send([0xe0])
         if len(buf) <= 0:
             print('Error getting model number: ', end='')
             utils.print_hex(buf)
-        else:
-            self.model_number = utils.to_ascii(buf)
+            return None
+        return utils.to_ascii(buf)
 
     def doSerialNumber(self):
         buf = self.send([0xe1])
@@ -206,6 +205,7 @@ class Fuelband(FuelbandBase):
     def printStatus(self):
         self.doVersion()
         print('Firmware version: %s' % self.firmware_version)
+
         self.protocolVersion()
         print('Protocol version: %s' % self.protocol_version)
 
@@ -228,8 +228,7 @@ class Fuelband(FuelbandBase):
         self.doGoal(nike.GOAL_TYPE_B)
         print('Goal B: %d' % (self.goal_b))
 
-        self.doModelNumber()
-        print('Model number: %s' % self.model_number)
+        print('Model number: %s' % self.getModelNumber())
 
         self.doSerialNumber()
         print('Serial number: %s' % self.serial_number)
@@ -257,6 +256,61 @@ class FuelbandSE(FuelbandBase):
 
         self.goal_a = None# 16bit fuel goal
         self.goal_b = None# 16bit fuel goal
+
+    def getModelNumber(self):
+        buf = self.send([0x05])
+        if len(buf) <= 0:
+            print('Error getting model number: ', end='')
+            utils.print_hex(buf)
+            return None
+        # TODO there's definitely some extra info at the beginning of this reponse
+        return utils.to_ascii(buf[15:])
+
+    def printStatus(self):
+        # self.doVersion()
+        # print('Firmware version: %s' % self.firmware_version)
+
+        # self.protocolVersion()
+        # print('Protocol version: %s' % self.protocol_version)
+
+        # if (self.protocol_version == 'None') or ('B' in self.firmware_version):
+        #     print('Fuelband in bootblock!')
+
+        # self.doNetworkVersion()
+        # print('Network version: %s' % self.network_version)
+
+        # self.doStatus()
+        # print('Status bytes: ', end='')
+        # utils.print_hex(self.status_bytes)
+
+        # self.doBattery()
+        # print('Battery status: %d%% charged, %dmV, %s' % (self.battery_percent, self.battery_mv, self.battery_mode))
+
+        # self.doGoal(nike.GOAL_TYPE_A)
+        # print('Goal A: %d' % (self.goal_a))
+
+        # self.doGoal(nike.GOAL_TYPE_B)
+        # print('Goal B: %d' % (self.goal_b))
+
+        print('Model number: %s' % self.getModelNumber())
+
+        # self.doSerialNumber()
+        # print('Serial number: %s' % self.serial_number)
+
+        # self.doHWRevision()
+        # print('Hardware revision: %s' % self.hardware_revision)
+
+        # self.doTimeStampDeviceInit()
+        # print('Timestamp device-init: %d (%s)' % (self.timestamp_deviceinit, utils.to_hex(self.timestamp_deviceinit_raw)))
+
+        # self.doTimeStampAssessmentStart()
+        # print('Timestamp assessment-start: %d (%s)' % (self.timestamp_assessmentstart, utils.to_hex(self.timestamp_assessmentstart_raw)))
+
+        # self.doTimeStampLastFuelReset()
+        # print('Timestamp fuel-reset: %d (%s)' % (self.timestamp_lastfuelreset, utils.to_hex(self.timestamp_lastfuelreset_raw)))
+
+        # self.doTimeStampLastGoalReset()
+        # print('Timestamp goal-reset: %d (%s)' % (self.timestamp_lastgoalreset, utils.to_hex(self.timestamp_lastgoalreset_raw)))
 
 def open_fuelband():
     device = hid.device()
