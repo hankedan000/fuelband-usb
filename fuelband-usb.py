@@ -5,9 +5,10 @@
 
 import sys
 import time
-from fuelband import *
+import nike
+import nike.utils as utils
 
-fb = Fuelband()
+fb = nike.open_fuelband()
 
 if len(sys.argv) > 1:
     if sys.argv[1] == 'log':
@@ -28,15 +29,15 @@ if len(sys.argv) > 1:
 
         fb.doStatus()
         print('Status bytes: ', end='')
-        fb.print_hex(fb.status_bytes)
+        utils.print_hex(fb.status_bytes)
 
         fb.doBattery()
         print('Battery status: %d%% charged, %dmV, %s' % (fb.battery_percent, fb.battery_mv, fb.battery_mode))
 
-        fb.doGoal(GOAL_TYPE_A)
+        fb.doGoal(nike.GOAL_TYPE_A)
         print('Goal A: %d' % (fb.goal_a))
 
-        fb.doGoal(GOAL_TYPE_B)
+        fb.doGoal(nike.GOAL_TYPE_B)
         print('Goal B: %d' % (fb.goal_b))
 
         fb.doModelNumber()
@@ -49,16 +50,16 @@ if len(sys.argv) > 1:
         print('Hardware revision: %s' % fb.hardware_revision)
 
         fb.doTimeStampDeviceInit()
-        print('Timestamp device-init: %d (%s)' % (fb.timestamp_deviceinit, fb.to_hex(fb.timestamp_deviceinit_raw)))
+        print('Timestamp device-init: %d (%s)' % (fb.timestamp_deviceinit, utils.to_hex(fb.timestamp_deviceinit_raw)))
 
         fb.doTimeStampAssessmentStart()
-        print('Timestamp assessment-start: %d (%s)' % (fb.timestamp_assessmentstart, fb.to_hex(fb.timestamp_assessmentstart_raw)))
+        print('Timestamp assessment-start: %d (%s)' % (fb.timestamp_assessmentstart, utils.to_hex(fb.timestamp_assessmentstart_raw)))
 
         fb.doTimeStampLastFuelReset()
-        print('Timestamp fuel-reset: %d (%s)' % (fb.timestamp_lastfuelreset, fb.to_hex(fb.timestamp_lastfuelreset_raw)))
+        print('Timestamp fuel-reset: %d (%s)' % (fb.timestamp_lastfuelreset, utils.to_hex(fb.timestamp_lastfuelreset_raw)))
 
         fb.doTimeStampLastGoalReset()
-        print('Timestamp goal-reset: %d (%s)' % (fb.timestamp_lastgoalreset, fb.to_hex(fb.timestamp_lastgoalreset_raw)))
+        print('Timestamp goal-reset: %d (%s)' % (fb.timestamp_lastgoalreset, utils.to_hex(fb.timestamp_lastgoalreset_raw)))
 
 
     elif sys.argv[1] == 'desktopdata':
@@ -68,8 +69,8 @@ if len(sys.argv) > 1:
                 with open(sys.argv[3], "wb") as f:
                     #for t_byte in dump:
                     f.write(bytes(dump))
-            #fb.print_hex(dump)
-            #fb.print_ascii(dump)
+            #utils.print_hex(dump)
+            #utils.print_ascii(dump)
     elif sys.argv[1] == 'factory_reset':
         fb.doFactoryReset()
     elif sys.argv[1] == 'scan_cmds':
@@ -104,8 +105,8 @@ if len(sys.argv) > 1:
 
 else:
     #buf = fb.send([0xe4, 0x6d, 0x6d, 0x20, 0x6d, 0x00])
-    #fb.print_hex(buf)
-    #fb.print_ascii(buf, True)
+    #utils.print_hex(buf)
+    #utils.print_ascii(buf, True)
     #fb.doVersion()
     #print(fb.firmware_version)
     #fb.doNetworkVersion()
@@ -117,12 +118,12 @@ else:
     # dump = fb.dumpMemory([0x19])
 
     #dump = fb.dumpMemory([0x54, 0x37, 0x03])
-    fb.print_hex(dump)
-    fb.print_ascii(dump)
+    utils.print_hex(dump)
+    utils.print_ascii(dump)
     print('')
     print('%d bytes / %d kb dumped' % (len(dump), len(dump)//1024))
 
 
     print('')
     fb.dumpLog()
-    fb.print_ascii(fb.log)
+    utils.print_ascii(fb.log)
