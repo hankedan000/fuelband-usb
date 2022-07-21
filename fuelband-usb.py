@@ -9,6 +9,11 @@ import nike
 import nike.utils as utils
 
 fb = nike.open_fuelband()
+if fb == None:
+    print("No fuelband devices found")
+    exit(-1)
+
+print('opened %s' % (type(fb)))
 
 if len(sys.argv) > 1:
     if sys.argv[1] == 'log':
@@ -16,51 +21,7 @@ if len(sys.argv) > 1:
         print(fb.log)
 
     elif sys.argv[1] == 'status':
-        fb.doVersion()
-        print('Firmware version: %s' % fb.firmware_version)
-        fb.protocolVersion()
-        print('Protocol version: %s' % fb.protocol_version)
-
-        if (fb.protocol_version == 'None') or ('B' in fb.firmware_version):
-            print('Fuelband in bootblock!')
-
-        fb.doNetworkVersion()
-        print('Network version: %s' % fb.network_version)
-
-        fb.doStatus()
-        print('Status bytes: ', end='')
-        utils.print_hex(fb.status_bytes)
-
-        fb.doBattery()
-        print('Battery status: %d%% charged, %dmV, %s' % (fb.battery_percent, fb.battery_mv, fb.battery_mode))
-
-        fb.doGoal(nike.GOAL_TYPE_A)
-        print('Goal A: %d' % (fb.goal_a))
-
-        fb.doGoal(nike.GOAL_TYPE_B)
-        print('Goal B: %d' % (fb.goal_b))
-
-        fb.doModelNumber()
-        print('Model number: %s' % fb.model_number)
-
-        fb.doSerialNumber()
-        print('Serial number: %s' % fb.serial_number)
-
-        fb.doHWRevision()
-        print('Hardware revision: %s' % fb.hardware_revision)
-
-        fb.doTimeStampDeviceInit()
-        print('Timestamp device-init: %d (%s)' % (fb.timestamp_deviceinit, utils.to_hex(fb.timestamp_deviceinit_raw)))
-
-        fb.doTimeStampAssessmentStart()
-        print('Timestamp assessment-start: %d (%s)' % (fb.timestamp_assessmentstart, utils.to_hex(fb.timestamp_assessmentstart_raw)))
-
-        fb.doTimeStampLastFuelReset()
-        print('Timestamp fuel-reset: %d (%s)' % (fb.timestamp_lastfuelreset, utils.to_hex(fb.timestamp_lastfuelreset_raw)))
-
-        fb.doTimeStampLastGoalReset()
-        print('Timestamp goal-reset: %d (%s)' % (fb.timestamp_lastgoalreset, utils.to_hex(fb.timestamp_lastgoalreset_raw)))
-
+        fb.printStatus()
 
     elif sys.argv[1] == 'desktopdata':
         if sys.argv[2] == 'get':

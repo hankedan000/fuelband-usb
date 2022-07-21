@@ -4,22 +4,18 @@
 import hid
 import nike.utils
 
-VID_NIKE        = 0x11ac
-PID_FUELBAND    = 0x6565
-PID_FUELBAND_SE = 0x317d
-
 GOAL_TYPE_A = 0x00
 GOAL_TYPE_B = 0x01
 
 
 class FuelbandBase():
+    VID = 0x11ac# Nike USB vendor id
+
     def __init__(self, device):
         self.device = device
 
         self.log = ''
 
-        self.vid = VID_NIKE
-        self.pid = None
         self.firmware_version = ''
         self.network_version = ''
         self.protocol_version = 'None'
@@ -56,10 +52,10 @@ class FuelbandBase():
 
 
 class Fuelband(FuelbandBase):
+    PID = 0x6565# Fuelband USB product id
+
     def __init__(self, device):
         super().__init__(device)
-
-        self.pid = PID_FUELBAND
 
         self.goal_a = None# 16bit fuel goal
         self.goal_b = None# 16bit fuel goal
@@ -112,7 +108,6 @@ class Fuelband(FuelbandBase):
         else:
             self.status_bytes = buf
 
-
     def doModelNumber(self):
         buf = self.send([0xe0])
         if len(buf) <= 0:
@@ -120,7 +115,6 @@ class Fuelband(FuelbandBase):
             utils.print_hex(buf)
         else:
             self.model_number = utils.to_ascii(buf)
-
 
     def doSerialNumber(self):
         buf = self.send([0xe1])
@@ -195,7 +189,6 @@ class Fuelband(FuelbandBase):
             for t_char in buf:
                 self.log = self.log + '%c' % t_char
 
-
     def dumpMemory(self, command, max_bytes=0xFFFFFF):
         dump = []
         status = 0x01
@@ -210,14 +203,68 @@ class Fuelband(FuelbandBase):
             utils.print_hex([status] + offset)
         return dump
 
+    def printStatus(self):
+        self.doVersion()
+        print('Firmware version: %s' % self.firmware_version)
+        self.protocolVersion()
+        print('Protocol version: %s' % self.protocol_version)
+
+        if (self.protocol_version == 'None') or ('B' in self.firmware_version):
+            print('Fuelband in bootblock!')
+
+        self.doNetworkVersion()
+        print('Network version: %s' % self.network_version)
+
+        self.doStatus()
+        print('Status bytes: ', end='')
+        utils.print_hex(self.status_bytes)
+
+        self.doBattery()
+        print('Battery status: %d%% charged, %dmV, %s' % (self.battery_percent, self.battery_mv, self.battery_mode))
+
+        self.doGoal(nike.GOAL_TYPE_A)
+        print('Goal A: %d' % (self.goal_a))
+
+        self.doGoal(nike.GOAL_TYPE_B)
+        print('Goal B: %d' % (self.goal_b))
+
+        self.doModelNumber()
+        print('Model number: %s' % self.model_number)
+
+        self.doSerialNumber()
+        print('Serial number: %s' % self.serial_number)
+
+        self.doHWRevision()
+        print('Hardware revision: %s' % self.hardware_revision)
+
+        self.doTimeStampDeviceInit()
+        print('Timestamp device-init: %d (%s)' % (self.timestamp_deviceinit, utils.to_hex(self.timestamp_deviceinit_raw)))
+
+        self.doTimeStampAssessmentStart()
+        print('Timestamp assessment-start: %d (%s)' % (self.timestamp_assessmentstart, utils.to_hex(self.timestamp_assessmentstart_raw)))
+
+        self.doTimeStampLastFuelReset()
+        print('Timestamp fuel-reset: %d (%s)' % (self.timestamp_lastfuelreset, utils.to_hex(self.timestamp_lastfuelreset_raw)))
+
+        self.doTimeStampLastGoalReset()
+        print('Timestamp goal-reset: %d (%s)' % (self.timestamp_lastgoalreset, utils.to_hex(self.timestamp_lastgoalreset_raw)))
+
+class FuelbandSE(FuelbandBase):
+    PID = 0x317d# Fuelband SE USB product id
+
+    def __init__(self, device):
+        super().__init__(device)
+
+        self.goal_a = None# 16bit fuel goal
+        self.goal_b = None# 16bit fuel goal
+
 def open_fuelband():
     device = hid.device()
 
     # try gen 1 Fuelband
     try:
-        device.open(VID_NIKE, PID_FUELBAND)
+        device.open(FuelbandBase.VID, Fuelband.PID)
         device.set_nonblocking(1)
-        print('opened Fuelband')
         return Fuelband(device)
     except IOError as ex:
         # no fuelband 1 exists
@@ -225,9 +272,8 @@ def open_fuelband():
 
     # try gen 2 Fuelband (SE)
     try:
-        device.open(VID_NIKE, PID_FUELBAND_SE)
+        device.open(FuelbandBase.VID, FuelbandSE.PID)
         device.set_nonblocking(1)
-        print('opened Fuelband SE!')
         return FuelbandSE(device)
     except IOError as ex:
         # no fuelband 1 exists
