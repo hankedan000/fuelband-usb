@@ -7,6 +7,9 @@ import nike.utils
 GOAL_TYPE_A = 0x00
 GOAL_TYPE_B = 0x01
 
+# hand orientation
+ORIENTATION_LEFT = 1
+ORIENTATION_RIGHT = 0
 
 class FuelbandBase():
     VID = 0x11ac# Nike USB vendor id
@@ -30,7 +33,7 @@ class FuelbandBase():
         # i see them incrementing this number for each transaction from
         # the Nike+ Connect app, but eventually that stops, and it just
         # becomes nonsense.
-        tag = kwargs.get('tag',0x07)
+        tag = kwargs.get('tag',0xFF)
 
         cmd_prefix = [0x01, len(cmd) + 1, tag]
         cmd = cmd_prefix + cmd
@@ -265,6 +268,10 @@ class FuelbandSE(FuelbandBase):
             return None
         # TODO there's definitely some extra info at the beginning of this reponse
         return utils.to_ascii(buf[15:])
+
+    def setOrientation(self, orientation):
+        buf = self.send([0x0b, 0x41, 0x01, orientation])
+        return len(buf) == 1 and buf[0] == 0x00
 
     def printStatus(self):
         # self.doVersion()
