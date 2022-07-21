@@ -251,6 +251,14 @@ class Fuelband(FuelbandBase):
         self.doTimeStampLastGoalReset()
         print('Timestamp goal-reset: %d (%s)' % (self.timestamp_lastgoalreset, utils.to_hex(self.timestamp_lastgoalreset_raw)))
 
+
+SET_CMD = 0x0b
+
+SET_DISP_CALORIES_CMD  = 0x39
+SET_DISP_STEPS_CMD     = 0x3A
+SET_ORIENTATION_CMD    = 0x41
+SET_DISP_HOURS_WON_CMD = 0x59
+
 class FuelbandSE(FuelbandBase):
     PID = 0x317d# Fuelband SE USB product id
 
@@ -259,6 +267,10 @@ class FuelbandSE(FuelbandBase):
 
         self.goal_a = None# 16bit fuel goal
         self.goal_b = None# 16bit fuel goal
+
+    def setOption(self, opt_cmd, opt_buf):
+        buf = self.send([SET_CMD, opt_cmd, len(opt_buf)] + opt_buf, verbose=False)
+        return len(buf) == 1 and buf[0] == 0x00
 
     def getModelNumber(self):
         buf = self.send([0x05])
@@ -270,8 +282,27 @@ class FuelbandSE(FuelbandBase):
         return utils.to_ascii(buf[15:])
 
     def setOrientation(self, orientation):
-        buf = self.send([0x0b, 0x41, 0x01, orientation])
-        return len(buf) == 1 and buf[0] == 0x00
+        return setOption(SET_ORIENTATION_CMD, [orientation])
+
+    def setDisplayOptions(self, **kwargs):
+        okay = True
+
+        calories = kwargs.get('calories',None)
+        if calories != None:
+            calories = (0x01 if calories else 0x00)
+            okay = self.setOption(SET_DISP_CALORIES_CMD, [calories]) and okay
+
+        steps = kwargs.get('steps',None)
+        if steps != None:
+            steps = (0x01 if steps else 0x00)
+            okay = self.setOption(SET_DISP_STEPS_CMD, [steps]) and okay
+
+        hours_won = kwargs.get('hours_won',None)
+        if steps != None:
+            hours_won = (0x01 if hours_won else 0x00)
+            okay = self.setOption(SET_DISP_HOURS_WON_CMD, [hours_won]) and okay
+
+        return okay
 
     def printStatus(self):
         # self.doVersion()
