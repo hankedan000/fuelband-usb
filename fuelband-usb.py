@@ -51,7 +51,7 @@ if len(sys.argv) > 1:
 
             try:
                 print("Sending command 0x%02X..." % (cmd))
-                res = fb.send([cmd],True)
+                res = fb.send([cmd], verbose=True)
                 fb.dumpLog()
                 if len(fb.log) > 0:
                     print("======== begin log ========")
