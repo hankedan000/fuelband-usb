@@ -187,7 +187,7 @@ class Fuelband(FuelbandBase):
 
         buf = [0]
         while len(buf) > 0:
-            buf = self.send([0xf6, 0x00], verbose=False)
+            buf = self.send([0xf6], verbose=False)
             for t_char in buf:
                 self.log = self.log + '%c' % t_char
 
