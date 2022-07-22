@@ -4,8 +4,8 @@
 import hid
 import nike.utils
 
-GOAL_TYPE_A = 0x00
-GOAL_TYPE_B = 0x01
+GOAL_TYPE_CURRENT  = 0x00
+GOAL_TYPE_TOMORROW = 0x01
 
 # hand orientation
 ORIENTATION_LEFT = 1
@@ -59,8 +59,8 @@ class Fuelband(FuelbandBase):
     def __init__(self, device):
         super().__init__(device)
 
-        self.goal_a = None# 16bit fuel goal
-        self.goal_b = None# 16bit fuel goal
+        self.goal_current = None# 16bit fuel goal
+        self.goal_tomorrow = None# 16bit fuel goal
 
 
     def doVersion(self):
@@ -149,16 +149,16 @@ class Fuelband(FuelbandBase):
             else:
                 self.battery_mode = 'unknown %s' % utils.to_hex(buf[1])
 
-    def doGoal(self, goal_type=GOAL_TYPE_A):
+    def doGoal(self, goal_type=GOAL_TYPE_CURRENT):
         buf = self.send([0x25, goal_type])
         if len(buf) <= 0:
             print('Error getting goal: ', end='')
             utils.print_hex(buf)
         else:
-            if goal_type == GOAL_TYPE_A:
-                self.goal_a = utils.intFromLittleEndian(buf[1:3])
-            elif goal_type == GOAL_TYPE_B:
-                self.goal_b = utils.intFromLittleEndian(buf[1:3])
+            if goal_type == GOAL_TYPE_CURRENT:
+                self.goal_current = utils.intFromLittleEndian(buf[1:3])
+            elif goal_type == GOAL_TYPE_TOMORROW:
+                self.goal_tomorrow = utils.intFromLittleEndian(buf[1:3])
             else:
                 print('Error invalid goal_type: ', end='')
                 utils.print_hex(buf)
@@ -225,11 +225,11 @@ class Fuelband(FuelbandBase):
         self.doBattery()
         print('Battery status: %d%% charged, %dmV, %s' % (self.battery_percent, self.battery_mv, self.battery_mode))
 
-        self.doGoal(nike.GOAL_TYPE_A)
-        print('Goal A: %d' % (self.goal_a))
+        self.doGoal(nike.GOAL_TYPE_CURRENT)
+        print('Goal (current): %d' % (self.goal_current))
 
-        self.doGoal(nike.GOAL_TYPE_B)
-        print('Goal B: %d' % (self.goal_b))
+        self.doGoal(nike.GOAL_TYPE_TOMORROW)
+        print('Goal (tomorrow): %d' % (self.goal_tomorrow))
 
         print('Model number: %s' % self.getModelNumber())
 
@@ -265,8 +265,8 @@ class FuelbandSE(FuelbandBase):
     def __init__(self, device):
         super().__init__(device)
 
-        self.goal_a = None# 16bit fuel goal
-        self.goal_b = None# 16bit fuel goal
+        self.goal_current = None# 16bit fuel goal
+        self.goal_tomorrow = None# 16bit fuel goal
 
     def setOption(self, opt_cmd, opt_buf):
         buf = self.send([SET_CMD, opt_cmd, len(opt_buf)] + opt_buf, verbose=False)
@@ -324,11 +324,11 @@ class FuelbandSE(FuelbandBase):
         # self.doBattery()
         # print('Battery status: %d%% charged, %dmV, %s' % (self.battery_percent, self.battery_mv, self.battery_mode))
 
-        # self.doGoal(nike.GOAL_TYPE_A)
-        # print('Goal A: %d' % (self.goal_a))
+        # self.doGoal(nike.GOAL_TYPE_CURRENT)
+        # print('Goal (current): %d' % (self.goal_current))
 
-        # self.doGoal(nike.GOAL_TYPE_B)
-        # print('Goal B: %d' % (self.goal_b))
+        # self.doGoal(nike.GOAL_TYPE_TOMORROW)
+        # print('Goal (tomorrow): %d' % (self.goal_tomorrow))
 
         print('Model number: %s' % self.getModelNumber())
 
