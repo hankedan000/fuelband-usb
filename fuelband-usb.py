@@ -34,8 +34,10 @@ if len(sys.argv) > 1:
             #utils.print_ascii(dump)
     elif sys.argv[1] == 'factory_reset':
         fb.doFactoryReset()
+    elif sys.argv[1] == 'latchup':
+        fb.doLatchup()
     elif sys.argv[1] == 'scan_cmds':
-        for cmd in range(255):
+        for cmd in range(0x00, 0x100):
             if cmd == 0x02:
                 # skip factory reset
                 continue

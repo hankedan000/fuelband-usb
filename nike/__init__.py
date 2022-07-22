@@ -52,6 +52,13 @@ class FuelbandBase():
             buf = []
         return buf
 
+FB_COMMAND_LUT = {
+    'latchup' : {
+        'cmd' : [0x03],
+        'description' : 'Turn off battery',
+        'args' : []
+    }
+}
 
 class Fuelband(FuelbandBase):
     PID = 0x6565# Fuelband USB product id
@@ -98,6 +105,9 @@ class Fuelband(FuelbandBase):
             print('Factory reset SUCCESS!')
         else:
             print('Factory reset FAILED!')
+
+    def doLatchup(self):# turn off battery
+        buf = self.send([0x03])
 
     def doSaveUserSettings(self):
         buf = self.send([0x30])
