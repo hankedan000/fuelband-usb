@@ -289,15 +289,24 @@ class Fuelband(FuelbandBase):
         print('Timestamp goal-reset: %d (%s)' % (self.timestamp_lastgoalreset, utils.to_hex(self.timestamp_lastgoalreset_raw)))
 
 OPCODE_VERSION = 5
+OPCODE_EVENT_LOG = 7
 OPCODE_SETTING_GET = 10
 OPCODE_SETTING_SET = 11
 OPCODE_STATUS = 32
 
+SETTING_GOAL_0 = 40 # 0 to 6 for days of the week?
+SETTING_GOAL_1 = 41
+SETTING_GOAL_2 = 42
+SETTING_GOAL_3 = 43
+SETTING_GOAL_4 = 44
+SETTING_GOAL_5 = 45
+SETTING_GOAL_6 = 46
 SETTING_FUEL = 48
 SETTING_MENU_CALORIES = 57
 SETTING_MENU_STEPS = 58
 SETTING_HANDEDNESS = 65 # orientation
 SETTING_MENU_STARS = 89 # hours won
+SETTING_FIRST_NAME = 97
 
 class FuelbandSE(FuelbandBase):
     PID = 0x317d# Fuelband SE USB product id
@@ -360,6 +369,17 @@ class FuelbandSE(FuelbandBase):
     def getFuel(self):
         return utils.intFromLittleEndian(self.getSetting(SETTING_FUEL))
 
+    # goal_idx [0 to 6]
+    def getGoal(self, goal_idx=0):
+        if goal_idx < 0:
+            raise RuntimeError('invalid goal_idx must be >=0')
+        elif goal_idx > 6:
+            raise RuntimeError('invalid goal_idx must be <=6')
+        return utils.intFromLittleEndian(self.getSetting(SETTING_GOAL_0 + goal_idx))
+
+    def getFirstName(self):
+        return self.getSetting(SETTING_FIRST_NAME)
+
     def setDisplayOptions(self, **kwargs):
         okay = True
 
@@ -408,7 +428,13 @@ class FuelbandSE(FuelbandBase):
 
         print('Model number: %s' % self.getModelNumber())
 
+        first_name = self.getFirstName()
+        print('First Name: %s' % (utils.to_ascii(first_name)))
+
         print('Fuel: %s' % (self.getFuel()))
+
+        for goal_idx in range(7):
+            print('Goal%d: %s' % (goal_idx,self.getGoal(goal_idx)))
 
         orientation = self.getOrientation()
         print('Orientation: %s' % ('LEFT' if orientation == ORIENTATION_LEFT else 'RIGHT'))
