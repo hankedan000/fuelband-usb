@@ -288,13 +288,15 @@ class Fuelband(FuelbandBase):
         self.doTimeStampLastGoalReset()
         print('Timestamp goal-reset: %d (%s)' % (self.timestamp_lastgoalreset, utils.to_hex(self.timestamp_lastgoalreset_raw)))
 
+OPCODE_VERSION = 5
+OPCODE_SETTING_GET = 10
+OPCODE_SETTING_SET = 11
+OPCODE_STATUS = 32
 
-SET_CMD = 0x0b
-
-SET_DISP_CALORIES_CMD  = 0x39
-SET_DISP_STEPS_CMD     = 0x3A
-SET_ORIENTATION_CMD    = 0x41
-SET_DISP_HOURS_WON_CMD = 0x59
+SETTING_MENU_CALORIES = 57
+SETTING_MENU_STEPS = 58
+SETTING_HANDEDNESS = 65 # orientation
+SETTING_MENU_STARS = 89 # hours won
 
 class FuelbandSE(FuelbandBase):
     PID = 0x317d# Fuelband SE USB product id
@@ -305,12 +307,34 @@ class FuelbandSE(FuelbandBase):
         self.goal_current = None# 16bit fuel goal
         self.goal_tomorrow = None# 16bit fuel goal
 
-    def setOption(self, opt_cmd, opt_buf):
-        buf = self.send([SET_CMD, opt_cmd, len(opt_buf)] + opt_buf, verbose=False)
+    def setSetting(self, setting_code, opt_buf):
+        buf = self.send([OPCODE_SETTING_SET, setting_code, len(opt_buf)] + opt_buf, verbose=False)
         return len(buf) == 1 and buf[0] == 0x00
 
+    def getSetting(self, setting_code):
+        setting_len = 1 # setting_code always 1 byte?
+        buf = self.send([OPCODE_SETTING_GET, setting_len, setting_code], verbose=False)
+        # FuelbandBase.send() only returns the last part of the full response buffer
+        #  _____________________
+        # /    full reponse     \
+        #           ____________
+        #          /    buf     \
+        # 01 06 ff 00 01 41 01 01
+        # ^  ^  ^  ^  ^  ^  ^  ^
+        # |  |  |  |  |  |  |  +- setting value
+        # |  |  |  |  |  |  +---- setting length
+        # |  |  |  |  |  +------- setting code (0x41 = 'handedness') \___ wrapped back command
+        # |  |  |  |  +---------- cmd length                         /
+        # |  |  |  +------------- status word?
+        # |  |  +---------------- tag (so we know what response this is. FuelbandBase always uses 0xff)
+        # |  +------------------- total response length in bytes
+        # +---------------------- USB HID report id (always 1?)
+
+        # TODO could check status and wrapped command for validity
+        return buf[4:]
+
     def getModelNumber(self):
-        buf = self.send([0x05])
+        buf = self.send([OPCODE_VERSION])
         if len(buf) <= 0:
             print('Error getting model number: ', end='')
             utils.print_hex(buf)
@@ -318,8 +342,19 @@ class FuelbandSE(FuelbandBase):
         # TODO there's definitely some extra info at the beginning of this reponse
         return utils.to_ascii(buf[15:])
 
+    def getStatus(self):
+        buf = self.send([OPCODE_STATUS])
+        if len(buf) <= 0:
+            print('Error getting status: ', end='')
+            utils.print_hex(buf)
+            return None
+        return buf
+
     def setOrientation(self, orientation):
-        return setOption(SET_ORIENTATION_CMD, [orientation])
+        return self.setSetting(SETTING_HANDEDNESS, [orientation])
+
+    def getOrientation(self):
+        return self.getSetting(SETTING_HANDEDNESS)[0]
 
     def setDisplayOptions(self, **kwargs):
         okay = True
@@ -327,17 +362,17 @@ class FuelbandSE(FuelbandBase):
         calories = kwargs.get('calories',None)
         if calories != None:
             calories = (0x01 if calories else 0x00)
-            okay = self.setOption(SET_DISP_CALORIES_CMD, [calories]) and okay
+            okay = self.setSetting(SETTING_MENU_CALORIES, [calories]) and okay
 
         steps = kwargs.get('steps',None)
         if steps != None:
             steps = (0x01 if steps else 0x00)
-            okay = self.setOption(SET_DISP_STEPS_CMD, [steps]) and okay
+            okay = self.setSetting(SETTING_MENU_STEPS, [steps]) and okay
 
         hours_won = kwargs.get('hours_won',None)
         if steps != None:
             hours_won = (0x01 if hours_won else 0x00)
-            okay = self.setOption(SET_DISP_HOURS_WON_CMD, [hours_won]) and okay
+            okay = self.setSetting(SETTING_MENU_STARS, [hours_won]) and okay
 
         return okay
 
@@ -354,9 +389,9 @@ class FuelbandSE(FuelbandBase):
         # self.doNetworkVersion()
         # print('Network version: %s' % self.network_version)
 
-        # self.doStatus()
-        # print('Status bytes: ', end='')
-        # utils.print_hex(self.status_bytes)
+        status_bytes = self.getStatus()
+        print('Status bytes: ', end='')
+        utils.print_hex(status_bytes)
 
         # self.doBattery()
         # print('Battery status: %d%% charged, %dmV, %s' % (self.battery_percent, self.battery_mv, self.battery_mode))
@@ -368,6 +403,9 @@ class FuelbandSE(FuelbandBase):
         # print('Goal (tomorrow): %d' % (self.goal_tomorrow))
 
         print('Model number: %s' % self.getModelNumber())
+
+        orientation = self.getOrientation()
+        print('Orientation: %s' % ('LEFT' if orientation == ORIENTATION_LEFT else 'RIGHT'))
 
         # self.doSerialNumber()
         # print('Serial number: %s' % self.serial_number)
