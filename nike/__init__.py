@@ -163,8 +163,8 @@ class Fuelband(FuelbandBase):
             print('Error getting battery status: ', end='')
             utils.print_hex(buf)
         else:
-            self.battery_percent = utils.intFromLittleEndian(buf[0:1])
-            self.battery_mv = utils.intFromLittleEndian(buf[2:4])
+            self.battery_percent = utils.intFromBigEndian(buf[0:1])
+            self.battery_mv = utils.intFromBigEndian(buf[2:4])
             if   buf[1] == 0x59:
                 self.battery_mode = 'charging'
             elif buf[1] == 0x4e:
@@ -179,9 +179,9 @@ class Fuelband(FuelbandBase):
             utils.print_hex(buf)
         else:
             if goal_type == GOAL_TYPE_CURRENT:
-                self.goal_current = utils.intFromLittleEndian(buf[1:3])
+                self.goal_current = utils.intFromBigEndian(buf[1:3])
             elif goal_type == GOAL_TYPE_TOMORROW:
-                self.goal_tomorrow = utils.intFromLittleEndian(buf[1:3])
+                self.goal_tomorrow = utils.intFromBigEndian(buf[1:3])
             else:
                 print('Error invalid goal_type: ', end='')
                 utils.print_hex(buf)
@@ -189,22 +189,22 @@ class Fuelband(FuelbandBase):
     def doTimeStampDeviceInit(self):
         buf = self.send([0x42, 0x01])
         self.timestamp_deviceinit_raw = buf[0:4]
-        self.timestamp_deviceinit = utils.intFromLittleEndian(buf[0:4])
+        self.timestamp_deviceinit = utils.intFromBigEndian(buf[0:4])
 
     def doTimeStampAssessmentStart(self):
         buf = self.send([0x42, 0x02])
         self.timestamp_assessmentstart_raw = buf[0:4]
-        self.timestamp_assessmentstart = utils.intFromLittleEndian(buf[0:4])
+        self.timestamp_assessmentstart = utils.intFromBigEndian(buf[0:4])
 
     def doTimeStampLastFuelReset(self):
         buf = self.send([0x42, 0x03])
         self.timestamp_lastfuelreset_raw = buf[0:4]
-        self.timestamp_lastfuelreset = utils.intFromLittleEndian(buf[0:4])
+        self.timestamp_lastfuelreset = utils.intFromBigEndian(buf[0:4])
 
     def doTimeStampLastGoalReset(self):
         buf = self.send([0x42, 0x04])
         self.timestamp_lastgoalreset_raw = buf[0:4]
-        self.timestamp_lastgoalreset = utils.intFromLittleEndian(buf[0:4])
+        self.timestamp_lastgoalreset = utils.intFromBigEndian(buf[0:4])
 
     def dumpLog(self):
 
@@ -293,6 +293,7 @@ OPCODE_SETTING_GET = 10
 OPCODE_SETTING_SET = 11
 OPCODE_STATUS = 32
 
+SETTING_FUEL = 48
 SETTING_MENU_CALORIES = 57
 SETTING_MENU_STEPS = 58
 SETTING_HANDEDNESS = 65 # orientation
@@ -356,6 +357,9 @@ class FuelbandSE(FuelbandBase):
     def getOrientation(self):
         return self.getSetting(SETTING_HANDEDNESS)[0]
 
+    def getFuel(self):
+        return utils.intFromLittleEndian(self.getSetting(SETTING_FUEL))
+
     def setDisplayOptions(self, **kwargs):
         okay = True
 
@@ -403,6 +407,8 @@ class FuelbandSE(FuelbandBase):
         # print('Goal (tomorrow): %d' % (self.goal_tomorrow))
 
         print('Model number: %s' % self.getModelNumber())
+
+        print('Fuel: %s' % (self.getFuel()))
 
         orientation = self.getOrientation()
         print('Orientation: %s' % ('LEFT' if orientation == ORIENTATION_LEFT else 'RIGHT'))

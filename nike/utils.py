@@ -23,10 +23,16 @@ def to_ascii(buf):
             t_buf = t_buf + '%c' % i
     return t_buf
 
-def intFromLittleEndian(buf):
+def intFromBigEndian(buf):
     t_num = 0
     for i in range(len(buf)):
         t_num = t_num | (buf[len(buf) - i - 1] << (i * 8))
+    return t_num
+
+def intFromLittleEndian(buf):
+    t_num = 0
+    for i in range(len(buf)):
+        t_num = t_num | (buf[i] << (i * 8))
     return t_num
 
 def get_shift(mask):
