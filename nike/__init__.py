@@ -294,7 +294,7 @@ OPCODE_SETTING_GET = 10
 OPCODE_SETTING_SET = 11
 OPCODE_STATUS = 32
 
-SETTING_GOAL_0 = 40 # 0 to 6 for days of the week?
+SETTING_GOAL_0 = 40 # 0 to 6 for days of week (0 = monday)
 SETTING_GOAL_1 = 41
 SETTING_GOAL_2 = 42
 SETTING_GOAL_3 = 43
@@ -369,13 +369,24 @@ class FuelbandSE(FuelbandBase):
     def getFuel(self):
         return utils.intFromLittleEndian(self.getSetting(SETTING_FUEL))
 
-    # goal_idx [0 to 6]
+    # goal_idx - [0 to 6] (0 = monday)
+    # goal - 32bit value
+    def setGoal(self, goal_idx, goal):
+        if goal_idx < 0:
+            raise RuntimeError('invalid goal_idx must be >=0')
+        elif goal_idx > 6:
+            raise RuntimeError('invalid goal_idx must be <=6')
+        setting_code = SETTING_GOAL_0 + goal_idx
+        return self.setSetting(setting_code,utils.intToLittleEndian(goal,4))
+
+    # goal_idx [0 to 6] (0 = monday)
     def getGoal(self, goal_idx=0):
         if goal_idx < 0:
             raise RuntimeError('invalid goal_idx must be >=0')
         elif goal_idx > 6:
             raise RuntimeError('invalid goal_idx must be <=6')
-        return utils.intFromLittleEndian(self.getSetting(SETTING_GOAL_0 + goal_idx))
+        setting_code = SETTING_GOAL_0 + goal_idx
+        return utils.intFromLittleEndian(self.getSetting(setting_code))
 
     def getFirstName(self):
         return self.getSetting(SETTING_FIRST_NAME)
@@ -433,8 +444,9 @@ class FuelbandSE(FuelbandBase):
 
         print('Fuel: %s' % (self.getFuel()))
 
-        for goal_idx in range(7):
-            print('Goal%d: %s' % (goal_idx,self.getGoal(goal_idx)))
+        DAYS = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun']
+        for d in range(7):
+            print('Goal%d (%s): %s' % (d,DAYS[d],self.getGoal(d)))
 
         orientation = self.getOrientation()
         print('Orientation: %s' % ('LEFT' if orientation == ORIENTATION_LEFT else 'RIGHT'))

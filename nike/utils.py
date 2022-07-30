@@ -35,6 +35,13 @@ def intFromLittleEndian(buf):
         t_num = t_num | (buf[i] << (i * 8))
     return t_num
 
+def intToLittleEndian(num,n_bytes):
+    buff = []
+    for b in range(n_bytes):
+        buff.append(num & 0xff)
+        num = num >> 8
+    return buff
+
 def get_shift(mask):
     if mask == 0:
         return 0
