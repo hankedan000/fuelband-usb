@@ -290,10 +290,12 @@ class Fuelband(FuelbandBase):
 
 OPCODE_VERSION = 5
 OPCODE_EVENT_LOG = 7
+OPCODE_RTC = 9
 OPCODE_SETTING_GET = 10
 OPCODE_SETTING_SET = 11
 OPCODE_STATUS = 32
 
+SETTING_SERIAL_NUMBER = 0
 SETTING_GOAL_0 = 40 # 0 to 6 for days of week (0 = monday)
 SETTING_GOAL_1 = 41
 SETTING_GOAL_2 = 42
@@ -306,6 +308,7 @@ SETTING_MENU_CALORIES = 57
 SETTING_MENU_STEPS = 58
 SETTING_HANDEDNESS = 65 # orientation
 SETTING_MENU_STARS = 89 # hours won
+SETTING_LIFETIME_FUEL = 94
 SETTING_FIRST_NAME = 97
 
 class FuelbandSE(FuelbandBase):
@@ -352,6 +355,10 @@ class FuelbandSE(FuelbandBase):
         # TODO there's definitely some extra info at the beginning of this reponse
         return utils.to_ascii(buf[15:])
 
+    def getSerialNumber(self):
+        buf = self.getSetting(SETTING_SERIAL_NUMBER)
+        return utils.to_ascii(buf)
+
     def getStatus(self):
         buf = self.send([OPCODE_STATUS])
         if len(buf) <= 0:
@@ -368,6 +375,9 @@ class FuelbandSE(FuelbandBase):
 
     def getFuel(self):
         return utils.intFromLittleEndian(self.getSetting(SETTING_FUEL))
+
+    def getLifeTimeFuel(self):
+        return utils.intFromLittleEndian(self.getSetting(SETTING_LIFETIME_FUEL))
 
     # goal_idx - [0 to 6] (0 = monday)
     # goal - 32bit value
@@ -387,6 +397,10 @@ class FuelbandSE(FuelbandBase):
             raise RuntimeError('invalid goal_idx must be <=6')
         setting_code = SETTING_GOAL_0 + goal_idx
         return utils.intFromLittleEndian(self.getSetting(setting_code))
+
+    def setFirstname(self,name):
+        name_buff = list(bytes(name,'ascii'))
+        return self.setSetting(SETTING_FIRST_NAME,name_buff)
 
     def getFirstName(self):
         return self.getSetting(SETTING_FIRST_NAME)
@@ -425,24 +439,21 @@ class FuelbandSE(FuelbandBase):
         # print('Network version: %s' % self.network_version)
 
         status_bytes = self.getStatus()
-        print('Status bytes: ', end='')
-        utils.print_hex(status_bytes)
+        print('Status bytes: %s' % utils.to_hex(status_bytes))
 
         # self.doBattery()
         # print('Battery status: %d%% charged, %dmV, %s' % (self.battery_percent, self.battery_mv, self.battery_mode))
 
-        # self.doGoal(nike.GOAL_TYPE_CURRENT)
-        # print('Goal (current): %d' % (self.goal_current))
-
-        # self.doGoal(nike.GOAL_TYPE_TOMORROW)
-        # print('Goal (tomorrow): %d' % (self.goal_tomorrow))
-
         print('Model number: %s' % self.getModelNumber())
+
+        print('Serial number: %s' % self.getSerialNumber())
 
         first_name = self.getFirstName()
         print('First Name: %s' % (utils.to_ascii(first_name)))
 
         print('Fuel: %s' % (self.getFuel()))
+
+        print('Fuel (lifetime): %s' % (self.getLifeTimeFuel()))
 
         DAYS = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun']
         for d in range(7):
@@ -450,9 +461,6 @@ class FuelbandSE(FuelbandBase):
 
         orientation = self.getOrientation()
         print('Orientation: %s' % ('LEFT' if orientation == ORIENTATION_LEFT else 'RIGHT'))
-
-        # self.doSerialNumber()
-        # print('Serial number: %s' % self.serial_number)
 
         # self.doHWRevision()
         # print('Hardware revision: %s' % self.hardware_revision)
