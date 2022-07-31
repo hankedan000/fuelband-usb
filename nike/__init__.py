@@ -3,6 +3,7 @@
 # https://github.com/trezor/cython-hidapi
 import hid
 import nike.utils
+import datetime
 
 GOAL_TYPE_CURRENT  = 0x00
 GOAL_TYPE_TOMORROW = 0x01
@@ -296,6 +297,11 @@ OPCODE_SETTING_GET = 10
 OPCODE_SETTING_SET = 11
 OPCODE_STATUS = 32
 
+# sub commands used with 'OPCODE_RTC'
+SUB_CMD_RTC_GET_TIME = 2
+SUB_CMD_RTC_GET_DATE = 4
+SUB_CMD_RTC_SET_TIME_DATE = 5
+
 SETTING_SERIAL_NUMBER = 0
 SETTING_GOAL_0 = 40 # 0 to 6 for days of week (0 = monday)
 SETTING_GOAL_1 = 41
@@ -369,7 +375,7 @@ class FuelbandSE(FuelbandBase):
         return buf
 
     def getTime(self):
-        buf = self.send([OPCODE_RTC,0x2])
+        buf = self.send([OPCODE_RTC,SUB_CMD_RTC_GET_TIME])
         time = {
             'hour' : buf[1],
             'min' : buf[2],
@@ -378,14 +384,30 @@ class FuelbandSE(FuelbandBase):
         return time
 
     def getDate(self):
-        buf = self.send([OPCODE_RTC,0x4])
+        buf = self.send([OPCODE_RTC,SUB_CMD_RTC_GET_DATE])
         date = {
             'year' : 2000 + buf[1],
             'month' : buf[2],
             'day' : buf[3],
-            'day_of_week?' : buf[4]
+            'day_of_week' : buf[4] # 1 = monday ... 7 = sunday
         }
         return date
+
+    # Sets the Fuelband's date and time
+    # dt_obj - a python datetime.datetime object. if 'None', then current time
+    #      will be used and set.
+    def setTimeAndDate(self, dt_obj=None):
+        if dt_obj == None:
+            dt_obj = datetime.datetime.now()
+        cmd = [OPCODE_RTC, SUB_CMD_RTC_SET_TIME_DATE]
+        cmd += [dt_obj.hour,dt_obj.minute,dt_obj.second]
+        day_of_week = datetime.date(dt_obj.year,dt_obj.month,dt_obj.day).weekday() + 1 # fuelband wants monday = 1
+        cmd += [dt_obj.year-2000,dt_obj.month,dt_obj.day,day_of_week]
+        # not sure what the rest of this is...
+        cmd += [0x50,0x46,0x00,0x00,0x3c,0x00,0x00]
+        buf = self.send(cmd, report_id = 11, verbose=False)
+        if len(buf) != 1 and buf[0] != 0x00:
+            raise RuntimeError('Failed to set time!')
 
     def setOrientation(self, orientation):
         return self.setSetting(SETTING_HANDEDNESS, [orientation])
