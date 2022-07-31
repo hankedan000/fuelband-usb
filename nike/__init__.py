@@ -27,6 +27,7 @@ class FuelbandBase():
 
     def send(self, cmd, **kwargs):
         verbose = kwargs.get('verbose',False)
+        report_id = kwargs.get('report_id',0x01)
 
         # seems to be something that can get 'wrapped' backed in the
         # response packets... kinda of like a sequence id? initially i
@@ -35,7 +36,7 @@ class FuelbandBase():
         # becomes nonsense.
         tag = kwargs.get('tag',0xFF)
 
-        cmd_prefix = [0x01, len(cmd) + 1, tag]
+        cmd_prefix = [report_id, len(cmd) + 1, tag]
         cmd = cmd_prefix + cmd
 
         if verbose: print("cmd: %s" % (utils.to_hex(cmd)))
@@ -367,6 +368,24 @@ class FuelbandSE(FuelbandBase):
             return None
         return buf
 
+    def getTime(self):
+        buf = self.send([OPCODE_RTC,0x2])
+        time = {
+            'hour' : buf[1],
+            'min' : buf[2],
+            'sec' : buf[3]
+        }
+        return time
+
+    def getDate(self):
+        buf = self.send([OPCODE_RTC,0x4])
+        date = {
+            'year' : 2000 + buf[1],
+            'month' : buf[2],
+            'day' : buf[3]
+        }
+        return date
+
     def setOrientation(self, orientation):
         return self.setSetting(SETTING_HANDEDNESS, [orientation])
 
@@ -440,6 +459,10 @@ class FuelbandSE(FuelbandBase):
 
         status_bytes = self.getStatus()
         print('Status bytes: %s' % utils.to_hex(status_bytes))
+
+        print('Time: %s' % self.getTime())
+
+        print('Date: %s' % self.getDate())
 
         # self.doBattery()
         # print('Battery status: %d%% charged, %dmV, %s' % (self.battery_percent, self.battery_mv, self.battery_mode))
