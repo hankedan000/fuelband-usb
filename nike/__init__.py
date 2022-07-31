@@ -382,7 +382,8 @@ class FuelbandSE(FuelbandBase):
         date = {
             'year' : 2000 + buf[1],
             'month' : buf[2],
-            'day' : buf[3]
+            'day' : buf[3],
+            'day_of_week?' : buf[4]
         }
         return date
 
