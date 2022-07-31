@@ -561,6 +561,9 @@ class FuelbandSE(FuelbandBase):
     def readDesktopData(self,addr,size):
         return self.__memoryRead(OPCODE_DESKTOP_DATA,addr,size,verbose=False,warn_on_truncated=False)
 
+    def readGraphicsPackData(self,addr,size):
+        return self.__memoryRead(OPCODE_UPLOAD_GRAPHICS_PACK,addr,size,verbose=False)
+
     def printStatus(self):
         # self.doVersion()
         # print('Firmware version: %s' % self.firmware_version)
@@ -619,6 +622,10 @@ class FuelbandSE(FuelbandBase):
 
         data = self.readDesktopData(0x0000, 128)
         print('Desktop Data:')
+        utils.print_hex_with_ascii(data)
+
+        data = self.readGraphicsPackData(0x0000, 128)# not sure how large these really are
+        print('Graphics Pack Data:')
         utils.print_hex_with_ascii(data)
 
 def open_fuelband():
