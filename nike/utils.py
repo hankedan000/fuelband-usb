@@ -23,6 +23,16 @@ def to_ascii(buf):
             t_buf = t_buf + '%c' % i
     return t_buf
 
+# sanatizes bytes to just readable ascii chars
+def to_ascii_san(byte_buff):
+    s = ''
+    for b in byte_buff:
+        print_char = '%c' % b
+        if b < 32 or b > 126:
+            print_char = '.'
+        s = s + print_char
+    return s
+
 def intFromBigEndian(buf):
     t_num = 0
     for i in range(len(buf)):

@@ -295,12 +295,22 @@ OPCODE_EVENT_LOG = 7
 OPCODE_RTC = 9
 OPCODE_SETTING_GET = 10
 OPCODE_SETTING_SET = 11
+OPCODE_MEMORY_EXT = 18
+OPCODE_DESKTOP_DATA = 19
+OPCODE_UPLOAD_GRAPHIC = 21
 OPCODE_STATUS = 32
 
 # sub commands used with 'OPCODE_RTC'
 SUB_CMD_RTC_GET_TIME = 2
 SUB_CMD_RTC_GET_DATE = 4
 SUB_CMD_RTC_SET_TIME_DATE = 5
+
+# sub commands for doing memory read/write operations
+SUBCMD_END_TRANSACTION = 3
+SUBCMD_START_READ = 4
+SUBCMD_READ_CHUNK = 0
+SUBCMD_START_WRITE = 2
+SUBCMD_WRITE_CHUNK = 1
 
 SETTING_SERIAL_NUMBER = 0
 SETTING_GOAL_0 = 40 # 0 to 6 for days of week (0 = monday)
@@ -467,6 +477,89 @@ class FuelbandSE(FuelbandBase):
 
         return okay
 
+    # not sure what this does
+    def getEventLog(self):
+        buf = self.send([OPCODE_EVENT_LOG],verbose=False)
+        return buf
+
+    def __memoryErrorToStr(self, err_code):
+        if err_code == 0:
+            return "Success"
+        elif err_code == 1:
+            return "Request packet does not contain all required fields"
+        elif err_code == 2:
+            return "Request fields contain invalid values";
+        elif err_code == 3:
+            return "Transaction already in progress"
+        elif err_code == 4:
+            return "Request does not belong to a transaction"
+        elif err_code == 5:
+            return "Failed to open a transaction"
+        elif err_code == 6:
+            return "Failed to close a transaction"
+        elif err_code == 7:
+            return "I/O failed"
+        return "Unknown error"
+
+    # Starts a block memory operation
+    # op_code - OPCODE_DESKTOP_DATA, OPCODE_UPLOAD_GRAPHIC, or OPCODE_MEMORY_EXT???
+    # start_sub_cmd - SUBCMD_START_READ or SUBCMD_START_WRITE
+    def __memoryStartOperation(self, op_code, start_sub_cmd, **kwargs):
+        verbose = kwargs.get('verbose',False)
+        buf = self.send([op_code, start_sub_cmd, 0x01, 0x00],report_id=10,verbose=verbose)
+        if len(buf) != 1 and buf[0] != 0x00:
+            raise RuntimeError('Failed to start memory operation! status = 0x%x (%s); buf = %s' % (buf[0],self.__memoryErrorToStr(buf[0]),buf))
+
+    def __memoryEndTransaction(self, op_code, **kwargs):
+        verbose = kwargs.get('verbose',False)
+        buf = self.send([op_code, SUBCMD_END_TRANSACTION],report_id=10,verbose=verbose)
+        if len(buf) != 1 and buf[0] != 0x00:
+            raise RuntimeError('Failed to end memory transaction! status = 0x%x (%s); buf = %s' % (buf[0],self.__memoryErrorToStr(buf[0]),buf))
+
+    # Start a memory read operation
+    # op_code - OPCODE_DESKTOP_DATA, OPCODE_UPLOAD_GRAPHIC, or OPCODE_MEMORY_EXT???
+    def __memoryRead(self,op_code,addr,size, **kwargs):
+        verbose = kwargs.get('verbose',False)
+        warn_on_truncated = kwargs.get('warn_on_truncated',True)
+
+        self.__memoryStartOperation(op_code,SUBCMD_START_READ,verbose=verbose)
+
+        read_data = []
+        bytes_remaining = size
+        offset = addr
+        cmd_buf = [op_code,SUBCMD_READ_CHUNK,0,0,0,0]
+        while bytes_remaining > 0:
+            bytes_this_read = bytes_remaining
+            if bytes_this_read > 58:
+                bytes_this_read = 58
+            cmd_buf[2] = offset & 0xff
+            cmd_buf[3] = (offset >> 8) & 0xff
+            cmd_buf[4] = bytes_this_read & 0xff
+            cmd_buf[5] = (bytes_this_read >> 8) & 0xff
+            rsp = self.send(cmd_buf,report_id=10,verbose=verbose)
+            if len(rsp) >= 1 and rsp[0] != 0x00:
+                raise RuntimeError('Read failed! status = 0x%x (%s)' % (rsp[0],self.__memoryErrorToStr(rsp[0])))
+            if len(rsp) >= 2 and rsp[1] < bytes_this_read:
+                if warn_on_truncated:
+                    print('WARN: truncated read! expected = %d; actual = %d' % (bytes_this_read,rsp[1]))
+                read_data += rsp[2:]
+                break;
+            elif len(rsp) >= 2 and rsp[1] > bytes_this_read:
+                print('WARN: read size > than expected! expected = %d; actual = %d' % (bytes_this_read,rsp[1]))
+                read_data += rsp[2:]
+                break;
+            else:
+                read_data += rsp[2:]
+            bytes_remaining -= bytes_this_read
+            offset += bytes_this_read
+
+        self.__memoryEndTransaction(op_code,verbose=verbose)
+
+        return read_data
+
+    def readDesktopData(self,addr,size):
+        return self.__memoryRead(OPCODE_DESKTOP_DATA,addr,size,verbose=False,warn_on_truncated=False)
+
     def printStatus(self):
         # self.doVersion()
         # print('Firmware version: %s' % self.firmware_version)
@@ -522,6 +615,9 @@ class FuelbandSE(FuelbandBase):
 
         # self.doTimeStampLastGoalReset()
         # print('Timestamp goal-reset: %d (%s)' % (self.timestamp_lastgoalreset, utils.to_hex(self.timestamp_lastgoalreset_raw)))
+
+        data = self.readDesktopData(0x0000, 128)
+        print('Desktop Data: %s' % utils.to_ascii_san(data))
 
 def open_fuelband():
     device = hid.device()
