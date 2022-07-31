@@ -298,6 +298,7 @@ OPCODE_SETTING_SET = 11
 OPCODE_MEMORY_EXT = 18
 OPCODE_DESKTOP_DATA = 19
 OPCODE_UPLOAD_GRAPHIC = 21
+OPCODE_UPLOAD_GRAPHICS_PACK = 22
 OPCODE_STATUS = 32
 
 # sub commands used with 'OPCODE_RTC'
@@ -502,7 +503,7 @@ class FuelbandSE(FuelbandBase):
         return "Unknown error"
 
     # Starts a block memory operation
-    # op_code - OPCODE_DESKTOP_DATA, OPCODE_UPLOAD_GRAPHIC, or OPCODE_MEMORY_EXT???
+    # op_code - OPCODE_DESKTOP_DATA, OPCODE_UPLOAD_GRAPHICS_PACK, or OPCODE_MEMORY_EXT???
     # start_sub_cmd - SUBCMD_START_READ or SUBCMD_START_WRITE
     def __memoryStartOperation(self, op_code, start_sub_cmd, **kwargs):
         verbose = kwargs.get('verbose',False)
@@ -517,7 +518,7 @@ class FuelbandSE(FuelbandBase):
             raise RuntimeError('Failed to end memory transaction! status = 0x%x (%s); buf = %s' % (buf[0],self.__memoryErrorToStr(buf[0]),buf))
 
     # Start a memory read operation
-    # op_code - OPCODE_DESKTOP_DATA, OPCODE_UPLOAD_GRAPHIC, or OPCODE_MEMORY_EXT???
+    # op_code - OPCODE_DESKTOP_DATA, OPCODE_UPLOAD_GRAPHICS_PACK, or OPCODE_MEMORY_EXT???
     def __memoryRead(self,op_code,addr,size, **kwargs):
         verbose = kwargs.get('verbose',False)
         warn_on_truncated = kwargs.get('warn_on_truncated',True)
@@ -617,7 +618,8 @@ class FuelbandSE(FuelbandBase):
         # print('Timestamp goal-reset: %d (%s)' % (self.timestamp_lastgoalreset, utils.to_hex(self.timestamp_lastgoalreset_raw)))
 
         data = self.readDesktopData(0x0000, 128)
-        print('Desktop Data: %s' % utils.to_ascii_san(data))
+        print('Desktop Data:')
+        utils.print_hex_with_ascii(data)
 
 def open_fuelband():
     device = hid.device()

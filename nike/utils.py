@@ -33,6 +33,24 @@ def to_ascii_san(byte_buff):
         s = s + print_char
     return s
 
+def print_hex_with_ascii(buf, **kwargs):
+    bytes_per_line = kwargs.get('bytes_per_line',16)
+
+    # build a format string for printing rows with hex portion padded with spaces
+    row_hex_width = bytes_per_line * 3 # 3 chars per hex print
+    row_fmt_str = '0x%%04x | %%-%ds| %%s' % row_hex_width
+
+    bytes_remaining = len(buf)
+    offset = 0
+    while bytes_remaining:
+        bytes_this_line = bytes_remaining
+        if bytes_this_line > bytes_per_line:
+            bytes_this_line = bytes_per_line
+        buf_slice = buf[offset:(offset+bytes_this_line)]
+        print(row_fmt_str % (offset,to_hex(buf_slice),to_ascii_san(buf_slice)))
+        bytes_remaining -= bytes_this_line
+        offset += bytes_this_line
+
 def intFromBigEndian(buf):
     t_num = 0
     for i in range(len(buf)):
