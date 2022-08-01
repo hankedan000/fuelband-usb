@@ -624,9 +624,9 @@ class FuelbandSE(FuelbandBase):
         print('Desktop Data:')
         utils.print_hex_with_ascii(data)
 
-        data = self.readGraphicsPackData(0x0000, 128)# not sure how large these really are
+        data = self.readGraphicsPackData(0x0000, 256)# not sure how large these really are
         print('Graphics Pack Data:')
-        utils.print_hex_with_ascii(data)
+        utils.print_hex_with_ascii(data,bytes_per_line=34)
 
 def open_fuelband():
     device = hid.device()
