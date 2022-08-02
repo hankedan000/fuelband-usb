@@ -32,6 +32,8 @@ if len(sys.argv) > 1:
                     f.write(bytes(dump))
             #utils.print_hex(dump)
             #utils.print_ascii(dump)
+    elif sys.argv[1] == 'set_time':
+        fb.setTimeAndDate()
     elif sys.argv[1] == 'factory_reset':
         fb.doFactoryReset()
     elif sys.argv[1] == 'latchup':
