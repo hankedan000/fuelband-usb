@@ -4,13 +4,20 @@
 import hid
 import nike.utils
 import datetime
+from enum import Enum
 
 GOAL_TYPE_CURRENT  = 0x00
 GOAL_TYPE_TOMORROW = 0x01
 
 # hand orientation
-ORIENTATION_LEFT = 1
-ORIENTATION_RIGHT = 0
+class Orientation(Enum):
+    LEFT = 1
+    RIGHT = 0
+
+class Gender(Enum):
+    MALE = 1
+    FEMALE = 2
+    UNKNOWN = 3
 
 class FuelbandBase():
     VID = 0x11ac# Nike USB vendor id
@@ -324,6 +331,10 @@ SETTING_GOAL_6 = 46
 SETTING_FUEL = 48
 SETTING_MENU_CALORIES = 57
 SETTING_MENU_STEPS = 58
+SETTING_WEIGHT = 61
+SETTING_HEIGHT = 62
+SETTING_DATE_OF_BIRTH = 63
+SETTING_GENDER = 64
 SETTING_HANDEDNESS = 65 # orientation
 SETTING_MENU_STARS = 89 # hours won
 SETTING_LIFETIME_FUEL = 94
@@ -338,8 +349,9 @@ class FuelbandSE(FuelbandBase):
         self.goal_current = None# 16bit fuel goal
         self.goal_tomorrow = None# 16bit fuel goal
 
-    def setSetting(self, setting_code, opt_buf):
-        buf = self.send([OPCODE_SETTING_SET, setting_code, len(opt_buf)] + opt_buf, verbose=False)
+    def setSetting(self, setting_code, opt_buf, **kwargs):
+        verbose = kwargs.get('verbose',False)
+        buf = self.send([OPCODE_SETTING_SET, setting_code, len(opt_buf)] + opt_buf, verbose=verbose)
         return len(buf) == 1 and buf[0] == 0x00
 
     def getSetting(self, setting_code):
@@ -424,7 +436,7 @@ class FuelbandSE(FuelbandBase):
         return self.setSetting(SETTING_HANDEDNESS, [orientation])
 
     def getOrientation(self):
-        return self.getSetting(SETTING_HANDEDNESS)[0]
+        return Orientation(self.getSetting(SETTING_HANDEDNESS)[0])
 
     def getFuel(self):
         return utils.intFromLittleEndian(self.getSetting(SETTING_FUEL))
@@ -457,6 +469,47 @@ class FuelbandSE(FuelbandBase):
 
     def getFirstName(self):
         return self.getSetting(SETTING_FIRST_NAME)
+
+    def setWeight(self,weight_lbs):
+        return self.setSetting(SETTING_WEIGHT,[weight_lbs & 0xFF,(weight_lbs >> 8) & 0xFF])
+
+    # returns height in inches
+    def getWeight(self):
+        return utils.intFromLittleEndian(self.getSetting(SETTING_WEIGHT))
+
+    def setHeight(self,height_inches):
+        return self.setSetting(SETTING_HEIGHT,[height_inches])
+
+    # returns height in inches
+    def getHeight(self):
+        return self.getSetting(SETTING_HEIGHT)[0]
+
+    def setDateOfBirth(self,date_obj):
+        date_buff = [date_obj.year & 0xff, (date_obj.year >> 8) & 0xff, date_obj.month, date_obj.day]
+        return self.setSetting(SETTING_DATE_OF_BIRTH,date_buff)
+
+    def getDateOfBirth(self):
+        rsp = self.getSetting(SETTING_DATE_OF_BIRTH)
+        year = utils.intFromLittleEndian(rsp[0:2])
+        month = rsp[2]
+        day = rsp[3]
+        return datetime.date(year,month,day)
+
+    def setGender(self,gender):
+        if gender == Gender.MALE:
+            self.setSetting(SETTING_GENDER,[77])
+        elif gender == Gender.FEMALE:
+            self.setSetting(SETTING_GENDER,[70])
+        else:
+            raise RuntimeError("Need to set gender to male/female")
+
+    def getGender(self):
+        genderCode = self.getSetting(SETTING_GENDER)[0]
+        if genderCode == 77:
+            return Gender.MALE
+        elif genderCode == 70:
+            return Gender.FEMALE
+        return Gender.UNKNOWN
 
     def setDisplayOptions(self, **kwargs):
         okay = True
@@ -594,6 +647,15 @@ class FuelbandSE(FuelbandBase):
         first_name = self.getFirstName()
         print('First Name: %s' % (utils.to_ascii(first_name)))
 
+        print('Weight: %d lbs' % (self.getWeight()))
+
+        print('Date of Birth: %s' % (self.getDateOfBirth()))
+
+        height = self.getHeight()
+        print("Height: %d'%d\"" % (int(height/12),int(height%12)))
+
+        print('Gender: %s' % (self.getGender()))
+
         print('Fuel: %s' % (self.getFuel()))
 
         print('Fuel (lifetime): %s' % (self.getLifeTimeFuel()))
@@ -602,8 +664,7 @@ class FuelbandSE(FuelbandBase):
         for d in range(7):
             print('Goal%d (%s): %s' % (d,DAYS[d],self.getGoal(d)))
 
-        orientation = self.getOrientation()
-        print('Orientation: %s' % ('LEFT' if orientation == ORIENTATION_LEFT else 'RIGHT'))
+        print('Orientation: %s' % (self.getOrientation()))
 
         # self.doHWRevision()
         # print('Hardware revision: %s' % self.hardware_revision)
