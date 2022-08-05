@@ -38,6 +38,12 @@ if len(sys.argv) > 1:
         fb.doFactoryReset()
     elif sys.argv[1] == 'latchup':
         fb.doLatchup()
+    elif sys.argv[1] == 'dump_graphics_pack':
+        filename = 'graphics_pack.bin'
+        data = fb.readGraphicsPackData(0x0000, 4096)
+        with open(filename,'wb') as f:
+            f.write(bytes(data))
+        print("dumped %d byte(s) to '%s'" % (len(data),filename))
     elif sys.argv[1] == 'scan_cmds':
         for cmd in range(0x00, 0x100):
             if cmd == 0x02:
