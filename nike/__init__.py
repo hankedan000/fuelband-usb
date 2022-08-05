@@ -299,19 +299,27 @@ class Fuelband(FuelbandBase):
 
 OPCODE_VERSION = 5
 OPCODE_EVENT_LOG = 7
+OPCODE_BATTERY_STATE = 6
 OPCODE_RTC = 9
 OPCODE_SETTING_GET = 10
 OPCODE_SETTING_SET = 11
+OPCODE_DEBUG = 16
 OPCODE_MEMORY_EXT = 18
 OPCODE_DESKTOP_DATA = 19
 OPCODE_UPLOAD_GRAPHIC = 21
 OPCODE_UPLOAD_GRAPHICS_PACK = 22
 OPCODE_STATUS = 32
 
+# sub commands used with 'OPCODE_BATTERY_STATE'
+SUBCMD_BATT_DISABLE_CHARGER = 2;
+SUBCMD_BATT_DISCONNECT_BATTERY = 3;
+SUBCMD_BATT_ENABLE_CHARGER = 1;
+SUBCMD_BATT_QUERY_BATTERY = 0;
+
 # sub commands used with 'OPCODE_RTC'
-SUB_CMD_RTC_GET_TIME = 2
-SUB_CMD_RTC_GET_DATE = 4
-SUB_CMD_RTC_SET_TIME_DATE = 5
+SUBCMD_RTC_GET_TIME = 2
+SUBCMD_RTC_GET_DATE = 4
+SUBCMD_RTC_SET_TIME_DATE = 5
 
 # sub commands for doing memory read/write operations
 SUBCMD_END_TRANSACTION = 3
@@ -397,8 +405,16 @@ class FuelbandSE(FuelbandBase):
             return None
         return buf
 
+    def getBatteryState(self):
+        buf = self.send([OPCODE_BATTERY_STATE,SUBCMD_BATT_QUERY_BATTERY])
+        return {
+            'charging' : buf[2] == 1,
+            'charge_level' : utils.intFromLittleEndian(buf[3:5]),
+            'charge_pct' : utils.intFromLittleEndian(buf[5:7])
+        }
+
     def getTime(self):
-        buf = self.send([OPCODE_RTC,SUB_CMD_RTC_GET_TIME])
+        buf = self.send([OPCODE_RTC,SUBCMD_RTC_GET_TIME])
         time = {
             'hour' : buf[1],
             'min' : buf[2],
@@ -407,7 +423,7 @@ class FuelbandSE(FuelbandBase):
         return time
 
     def getDate(self):
-        buf = self.send([OPCODE_RTC,SUB_CMD_RTC_GET_DATE])
+        buf = self.send([OPCODE_RTC,SUBCMD_RTC_GET_DATE])
         date = {
             'year' : 2000 + buf[1],
             'month' : buf[2],
@@ -422,7 +438,7 @@ class FuelbandSE(FuelbandBase):
     def setTimeAndDate(self, dt_obj=None):
         if dt_obj == None:
             dt_obj = datetime.datetime.now()
-        cmd = [OPCODE_RTC, SUB_CMD_RTC_SET_TIME_DATE]
+        cmd = [OPCODE_RTC, SUBCMD_RTC_SET_TIME_DATE]
         cmd += [dt_obj.hour,dt_obj.minute,dt_obj.second]
         day_of_week = datetime.date(dt_obj.year,dt_obj.month,dt_obj.day).weekday() + 1 # fuelband wants monday = 1
         cmd += [dt_obj.year-2000,dt_obj.month,dt_obj.day,day_of_week]
@@ -533,7 +549,12 @@ class FuelbandSE(FuelbandBase):
 
     # not sure what this does
     def getEventLog(self):
-        buf = self.send([OPCODE_EVENT_LOG],verbose=False)
+        buf = self.send([OPCODE_EVENT_LOG],verbose=True)
+        return buf
+
+    # causes device reboot???
+    def setDebug(self):
+        buf = self.send([OPCODE_DEBUG,0x1],verbose=True)
         return buf
 
     def __memoryErrorToStr(self, err_code):
@@ -632,6 +653,9 @@ class FuelbandSE(FuelbandBase):
 
         status_bytes = self.getStatus()
         print('Status bytes: %s' % utils.to_hex(status_bytes))
+
+        batt_state = self.getBatteryState()
+        print('Battery State: %s' % batt_state)
 
         print('Time: %s' % self.getTime())
 
