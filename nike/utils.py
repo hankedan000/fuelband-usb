@@ -63,6 +63,13 @@ def intFromLittleEndian(buf):
         t_num = t_num | (buf[i] << (i * 8))
     return t_num
 
+def intToBigEndian(num,n_bytes):
+    buff = []
+    for b in range(n_bytes):
+        buff.insert(0,num & 0xff)# append to front of list
+        num = num >> 8
+    return buff
+
 def intToLittleEndian(num,n_bytes):
     buff = []
     for b in range(n_bytes):

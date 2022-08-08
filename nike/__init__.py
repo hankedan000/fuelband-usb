@@ -181,7 +181,7 @@ class Fuelband(FuelbandBase):
             else:
                 self.battery_mode = 'unknown %s' % utils.to_hex(buf[1])
 
-    def doGoal(self, goal_type=GOAL_TYPE_CURRENT):
+    def doGoal(self, goal_type=GOAL_TYPE_CURRENT, goal=None):
         buf = self.send([0x25, goal_type])
         if len(buf) <= 0:
             print('Error getting goal: ', end='')
@@ -194,6 +194,11 @@ class Fuelband(FuelbandBase):
             else:
                 print('Error invalid goal_type: ', end='')
                 utils.print_hex(buf)
+
+    def setGoal(self, goal, goal_type=GOAL_TYPE_CURRENT):
+        cmd = [0x25, goal_type] + utils.intToBigEndian(goal,3)
+        buf = self.send(cmd)
+        return buf
 
     def doTimeStampDeviceInit(self):
         buf = self.send([0x42, 0x01])
