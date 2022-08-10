@@ -204,6 +204,11 @@ class Fuelband(FuelbandBase):
         buf = self.send(cmd)
         return buf
 
+    def getTime(self):
+        # TODO not sure how to interpret this yet
+        buf = self.send([0x21], verbose=False)
+        return buf
+
     def doTimeStampDeviceInit(self):
         buf = self.send([0x42, 0x01])
         self.timestamp_deviceinit_raw = buf[0:4]
@@ -285,6 +290,8 @@ class Fuelband(FuelbandBase):
         print('Goal (current): %d' % self.getGoal(nike.GOAL_TYPE_CURRENT))
 
         print('Goal (tomorrow): %d' % self.getGoal(nike.GOAL_TYPE_TOMORROW))
+
+        print('Time: %s' % self.getTime())
 
         print('Model number: %s' % self.getModelNumber())
 
