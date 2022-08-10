@@ -88,10 +88,6 @@ class Fuelband(FuelbandBase):
     def __init__(self, device):
         super().__init__(device)
 
-        self.goal_current = None# 16bit fuel goal
-        self.goal_tomorrow = None# 16bit fuel goal
-
-
     def doVersion(self):
         buf = self.send([0x08])
         if len(buf) != 7:
@@ -181,19 +177,27 @@ class Fuelband(FuelbandBase):
             else:
                 self.battery_mode = 'unknown %s' % utils.to_hex(buf[1])
 
-    def doGoal(self, goal_type=GOAL_TYPE_CURRENT, goal=None):
+    def getOrientation(self):
+        return self.send([0x37])[0]
+
+    def setOrientation(self, rightHanded):
+        orientation = 0x01 if rightHanded else 0x00
+        self.send([0x37, orientation])
+
+    def getGoal(self, goal_type=GOAL_TYPE_CURRENT, goal=None):
         buf = self.send([0x25, goal_type])
         if len(buf) <= 0:
             print('Error getting goal: ', end='')
             utils.print_hex(buf)
         else:
             if goal_type == GOAL_TYPE_CURRENT:
-                self.goal_current = utils.intFromBigEndian(buf[1:3])
+                return utils.intFromBigEndian(buf[1:3])
             elif goal_type == GOAL_TYPE_TOMORROW:
-                self.goal_tomorrow = utils.intFromBigEndian(buf[1:3])
+                return utils.intFromBigEndian(buf[1:3])
             else:
                 print('Error invalid goal_type: ', end='')
                 utils.print_hex(buf)
+        return None
 
     def setGoal(self, goal, goal_type=GOAL_TYPE_CURRENT):
         cmd = [0x25, goal_type] + utils.intToBigEndian(goal,3)
@@ -276,11 +280,11 @@ class Fuelband(FuelbandBase):
         self.doBattery()
         print('Battery status: %d%% charged, %dmV, %s' % (self.battery_percent, self.battery_mv, self.battery_mode))
 
-        self.doGoal(nike.GOAL_TYPE_CURRENT)
-        print('Goal (current): %d' % (self.goal_current))
+        print('Orientation: %s' % ("LEFT" if self.getOrientation() == 0 else "RIGHT"))
 
-        self.doGoal(nike.GOAL_TYPE_TOMORROW)
-        print('Goal (tomorrow): %d' % (self.goal_tomorrow))
+        print('Goal (current): %d' % self.getGoal(nike.GOAL_TYPE_CURRENT))
+
+        print('Goal (tomorrow): %d' % self.getGoal(nike.GOAL_TYPE_TOMORROW))
 
         print('Model number: %s' % self.getModelNumber())
 
