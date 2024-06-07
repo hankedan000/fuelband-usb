@@ -11,6 +11,13 @@ def to_hex(buf):
         t_buf = t_buf + '%02x' % i
     return t_buf
 
+def hex_row_to_bytes(row, delim=' '):
+    bytes = bytearray()
+    for part in row.split(delim):
+        if len(part) > 0:
+            bytes.append(int(part, 16))
+    return bytes
+
 def print_ascii(buf, newline=False):
     for i in buf:
         print('%c' % i, end='')

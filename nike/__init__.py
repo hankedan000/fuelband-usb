@@ -313,26 +313,33 @@ class Fuelband(FuelbandBase):
         self.doTimeStampLastGoalReset()
         print('Timestamp goal-reset: %d (%s)' % (self.timestamp_lastgoalreset, utils.to_hex(self.timestamp_lastgoalreset_raw)))
 
-OPCODE_VERSION = 5
-OPCODE_EVENT_LOG = 7
-OPCODE_BATTERY_STATE = 6
-OPCODE_RTC = 9
-OPCODE_SETTING_GET = 10
-OPCODE_SETTING_SET = 11
-OPCODE_DEBUG = 16
-OPCODE_MEMORY_EXT = 18
-OPCODE_DESKTOP_DATA = 19
-OPCODE_UPLOAD_GRAPHIC = 21
-OPCODE_UPLOAD_GRAPHICS_PACK = 22
-OPCODE_STATUS = 32
+class SE_Opcode(Enum):
+    UNKNOWN5             = 0x01 # finish upload of graphics pack?
+    UNKNOWN1             = 0x02
+    VERSION              = 0x05
+    EVENT_LOG            = 0x07
+    BATTERY_STATE        = 0x06
+    RTC                  = 0x09
+    SETTING_GET          = 0x0a
+    SETTING_SET          = 0x0b
+    UNKNOWN4             = 0x0c
+    DEBUG                = 0x10
+    MEMORY_EXT           = 0x12
+    DESKTOP_DATA         = 0x13
+    UPLOAD_GRAPHIC       = 0x15
+    UPLOAD_GRAPHICS_PACK = 0x16
+    STATUS               = 0x20
+    UNKNOWN3             = 0x21
+    UNKNOWN2             = 0x60
 
-# sub commands used with 'OPCODE_BATTERY_STATE'
-SUBCMD_BATT_DISABLE_CHARGER = 2;
-SUBCMD_BATT_DISCONNECT_BATTERY = 3;
-SUBCMD_BATT_ENABLE_CHARGER = 1;
-SUBCMD_BATT_QUERY_BATTERY = 0;
+# sub commands used with 'SE_Opcode.BATTERY_STATE'
+class SE_SubCmdBatt(Enum):
+    QUERY_BATTERY = 0
+    ENABLE_CHARGER = 1
+    DISABLE_CHARGER = 2
+    DISCONNECT_BATTERY = 3
 
-# sub commands used with 'OPCODE_RTC'
+# sub commands used with 'SE_Opcode.RTC'
 SUBCMD_RTC_GET_TIME = 2
 SUBCMD_RTC_GET_DATE = 4
 SUBCMD_RTC_SET_TIME_DATE = 5
@@ -344,25 +351,45 @@ SUBCMD_READ_CHUNK = 0
 SUBCMD_START_WRITE = 2
 SUBCMD_WRITE_CHUNK = 1
 
-SETTING_SERIAL_NUMBER = 0
-SETTING_GOAL_0 = 40 # 0 to 6 for days of week (0 = monday)
-SETTING_GOAL_1 = 41
-SETTING_GOAL_2 = 42
-SETTING_GOAL_3 = 43
-SETTING_GOAL_4 = 44
-SETTING_GOAL_5 = 45
-SETTING_GOAL_6 = 46
-SETTING_FUEL = 48
-SETTING_MENU_CALORIES = 57
-SETTING_MENU_STEPS = 58
-SETTING_WEIGHT = 61
-SETTING_HEIGHT = 62
-SETTING_DATE_OF_BIRTH = 63
-SETTING_GENDER = 64
-SETTING_HANDEDNESS = 65 # orientation
-SETTING_MENU_STARS = 89 # hours won
-SETTING_LIFETIME_FUEL = 94
-SETTING_FIRST_NAME = 97
+class SE_SubCmdSett(Enum):
+    SERIAL_NUMBER = 0
+    GOAL_0 = 40 # 0 to 6 for days of week (0 = monday)
+    GOAL_1 = 41
+    GOAL_2 = 42
+    GOAL_3 = 43
+    GOAL_4 = 44
+    GOAL_5 = 45
+    GOAL_6 = 46
+    UNKNOWN12 = 47
+    FUEL = 48
+    UNKNOWN14 = 49
+    UNKNOWN13 = 50
+    UNKNOWN5 = 56
+    MENU_CALORIES = 57
+    MENU_STEPS = 58
+    UNKNOWN6 = 59
+    WEIGHT = 61
+    HEIGHT = 62
+    DATE_OF_BIRTH = 63
+    GENDER = 64
+    HANDEDNESS = 65 # orientation
+    UNKNOWN8 = 66
+    UNKNOWN9 = 67
+    UNKNOWN3 = 69
+    UNKNOWN4 = 70
+    UNKNOWN10 = 72
+    UNKNOWN11 = 73
+    UNKNOWN18 = 75
+    UNKNOWN19 = 76
+    UNKNOWN1 = 78
+    UNKNOWN15 = 87
+    MENU_STARS = 89 # hours won
+    UNKNOWN16 = 91
+    UNKNOWN7 = 92
+    LIFETIME_FUEL = 94
+    UNKNOWN2 = 95
+    FIRST_NAME = 97
+    UNKNOWN17 = 99
 
 class FuelbandSE(FuelbandBase):
     PID = 0x317d# Fuelband SE USB product id
@@ -375,12 +402,12 @@ class FuelbandSE(FuelbandBase):
 
     def setSetting(self, setting_code, opt_buf, **kwargs):
         verbose = kwargs.get('verbose',False)
-        buf = self.send([OPCODE_SETTING_SET, setting_code, len(opt_buf)] + opt_buf, verbose=verbose)
+        buf = self.send([SE_Opcode.SETTING_SET, setting_code, len(opt_buf)] + opt_buf, verbose=verbose)
         return len(buf) == 1 and buf[0] == 0x00
 
     def getSetting(self, setting_code):
         setting_len = 1 # setting_code always 1 byte?
-        buf = self.send([OPCODE_SETTING_GET, setting_len, setting_code], verbose=False)
+        buf = self.send([SE_Opcode.SETTING_GET, setting_len, setting_code], verbose=False)
         # FuelbandBase.send() only returns the last part of the full response buffer
         #  _____________________
         # /    full reponse     \
@@ -401,7 +428,7 @@ class FuelbandSE(FuelbandBase):
         return buf[4:]
 
     def getModelNumber(self):
-        buf = self.send([OPCODE_VERSION])
+        buf = self.send([SE_Opcode.VERSION])
         if len(buf) <= 0:
             print('Error getting model number: ', end='')
             utils.print_hex(buf)
@@ -410,11 +437,11 @@ class FuelbandSE(FuelbandBase):
         return utils.to_ascii(buf[15:])
 
     def getSerialNumber(self):
-        buf = self.getSetting(SETTING_SERIAL_NUMBER)
+        buf = self.getSetting(SE_SubCmdSett.SERIAL_NUMBER)
         return utils.to_ascii(buf)
 
     def getStatus(self):
-        buf = self.send([OPCODE_STATUS])
+        buf = self.send([SE_Opcode.STATUS])
         if len(buf) <= 0:
             print('Error getting status: ', end='')
             utils.print_hex(buf)
@@ -422,7 +449,7 @@ class FuelbandSE(FuelbandBase):
         return buf
 
     def getBatteryState(self):
-        buf = self.send([OPCODE_BATTERY_STATE,SUBCMD_BATT_QUERY_BATTERY])
+        buf = self.send([SE_Opcode.BATTERY_STATE,SE_SubCmdBatt.QUERY_BATTERY])
         return {
             'charging' : buf[2] == 1,
             'charge_level' : utils.intFromLittleEndian(buf[3:5]),
@@ -430,7 +457,7 @@ class FuelbandSE(FuelbandBase):
         }
 
     def getTime(self):
-        buf = self.send([OPCODE_RTC,SUBCMD_RTC_GET_TIME])
+        buf = self.send([SE_Opcode.RTC,SUBCMD_RTC_GET_TIME])
         time = {
             'hour' : buf[1],
             'min' : buf[2],
@@ -439,7 +466,7 @@ class FuelbandSE(FuelbandBase):
         return time
 
     def getDate(self):
-        buf = self.send([OPCODE_RTC,SUBCMD_RTC_GET_DATE])
+        buf = self.send([SE_Opcode.RTC,SUBCMD_RTC_GET_DATE])
         date = {
             'year' : 2000 + buf[1],
             'month' : buf[2],
@@ -454,7 +481,7 @@ class FuelbandSE(FuelbandBase):
     def setTimeAndDate(self, dt_obj=None):
         if dt_obj == None:
             dt_obj = datetime.datetime.now()
-        cmd = [OPCODE_RTC, SUBCMD_RTC_SET_TIME_DATE]
+        cmd = [SE_Opcode.RTC, SUBCMD_RTC_SET_TIME_DATE]
         cmd += [dt_obj.hour,dt_obj.minute,dt_obj.second]
         day_of_week = datetime.date(dt_obj.year,dt_obj.month,dt_obj.day).weekday() + 1 # fuelband wants monday = 1
         cmd += [dt_obj.year-2000,dt_obj.month,dt_obj.day,day_of_week]
@@ -465,16 +492,16 @@ class FuelbandSE(FuelbandBase):
             raise RuntimeError('Failed to set time!')
 
     def setOrientation(self, orientation):
-        return self.setSetting(SETTING_HANDEDNESS, [orientation])
+        return self.setSetting(SE_SubCmdSett.HANDEDNESS, [orientation])
 
     def getOrientation(self):
-        return Orientation(self.getSetting(SETTING_HANDEDNESS)[0])
+        return Orientation(self.getSetting(SE_SubCmdSett.HANDEDNESS)[0])
 
     def getFuel(self):
-        return utils.intFromLittleEndian(self.getSetting(SETTING_FUEL))
+        return utils.intFromLittleEndian(self.getSetting(SE_SubCmdSett.FUEL))
 
     def getLifeTimeFuel(self):
-        return utils.intFromLittleEndian(self.getSetting(SETTING_LIFETIME_FUEL))
+        return utils.intFromLittleEndian(self.getSetting(SE_SubCmdSett.LIFETIME_FUEL))
 
     # goal_idx - [0 to 6] (0 = monday)
     # goal - 32bit value
@@ -483,7 +510,7 @@ class FuelbandSE(FuelbandBase):
             raise RuntimeError('invalid goal_idx must be >=0')
         elif goal_idx > 6:
             raise RuntimeError('invalid goal_idx must be <=6')
-        setting_code = SETTING_GOAL_0 + goal_idx
+        setting_code = SE_SubCmdSett.GOAL_0 + goal_idx
         return self.setSetting(setting_code,utils.intToLittleEndian(goal,4))
 
     # goal_idx [0 to 6] (0 = monday)
@@ -492,36 +519,36 @@ class FuelbandSE(FuelbandBase):
             raise RuntimeError('invalid goal_idx must be >=0')
         elif goal_idx > 6:
             raise RuntimeError('invalid goal_idx must be <=6')
-        setting_code = SETTING_GOAL_0 + goal_idx
+        setting_code = SE_SubCmdSett.GOAL_0 + goal_idx
         return utils.intFromLittleEndian(self.getSetting(setting_code))
 
     def setFirstname(self,name):
         name_buff = list(bytes(name,'ascii'))
-        return self.setSetting(SETTING_FIRST_NAME,name_buff)
+        return self.setSetting(SE_SubCmdSett.FIRST_NAME,name_buff)
 
     def getFirstName(self):
-        return self.getSetting(SETTING_FIRST_NAME)
+        return self.getSetting(SE_SubCmdSett.FIRST_NAME)
 
     def setWeight(self,weight_lbs):
-        return self.setSetting(SETTING_WEIGHT,[weight_lbs & 0xFF,(weight_lbs >> 8) & 0xFF])
+        return self.setSetting(SE_SubCmdSett.WEIGHT,[weight_lbs & 0xFF,(weight_lbs >> 8) & 0xFF])
 
     # returns height in inches
     def getWeight(self):
-        return utils.intFromLittleEndian(self.getSetting(SETTING_WEIGHT))
+        return utils.intFromLittleEndian(self.getSetting(SE_SubCmdSett.WEIGHT))
 
     def setHeight(self,height_inches):
-        return self.setSetting(SETTING_HEIGHT,[height_inches])
+        return self.setSetting(SE_SubCmdSett.HEIGHT,[height_inches])
 
     # returns height in inches
     def getHeight(self):
-        return self.getSetting(SETTING_HEIGHT)[0]
+        return self.getSetting(SE_SubCmdSett.HEIGHT)[0]
 
     def setDateOfBirth(self,date_obj):
         date_buff = [date_obj.year & 0xff, (date_obj.year >> 8) & 0xff, date_obj.month, date_obj.day]
-        return self.setSetting(SETTING_DATE_OF_BIRTH,date_buff)
+        return self.setSetting(SE_SubCmdSett.DATE_OF_BIRTH,date_buff)
 
     def getDateOfBirth(self):
-        rsp = self.getSetting(SETTING_DATE_OF_BIRTH)
+        rsp = self.getSetting(SE_SubCmdSett.DATE_OF_BIRTH)
         year = utils.intFromLittleEndian(rsp[0:2])
         month = rsp[2]
         day = rsp[3]
@@ -529,14 +556,14 @@ class FuelbandSE(FuelbandBase):
 
     def setGender(self,gender):
         if gender == Gender.MALE:
-            self.setSetting(SETTING_GENDER,[77])
+            self.setSetting(SE_SubCmdSett.GENDER,[77])
         elif gender == Gender.FEMALE:
-            self.setSetting(SETTING_GENDER,[70])
+            self.setSetting(SE_SubCmdSett.GENDER,[70])
         else:
             raise RuntimeError("Need to set gender to male/female")
 
     def getGender(self):
-        genderCode = self.getSetting(SETTING_GENDER)[0]
+        genderCode = self.getSetting(SE_SubCmdSett.GENDER)[0]
         if genderCode == 77:
             return Gender.MALE
         elif genderCode == 70:
@@ -549,28 +576,28 @@ class FuelbandSE(FuelbandBase):
         calories = kwargs.get('calories',None)
         if calories != None:
             calories = (0x01 if calories else 0x00)
-            okay = self.setSetting(SETTING_MENU_CALORIES, [calories]) and okay
+            okay = self.setSetting(SE_SubCmdSett.MENU_CALORIES, [calories]) and okay
 
         steps = kwargs.get('steps',None)
         if steps != None:
             steps = (0x01 if steps else 0x00)
-            okay = self.setSetting(SETTING_MENU_STEPS, [steps]) and okay
+            okay = self.setSetting(SE_SubCmdSett.MENU_STEPS, [steps]) and okay
 
         hours_won = kwargs.get('hours_won',None)
         if steps != None:
             hours_won = (0x01 if hours_won else 0x00)
-            okay = self.setSetting(SETTING_MENU_STARS, [hours_won]) and okay
+            okay = self.setSetting(SE_SubCmdSett.MENU_STARS, [hours_won]) and okay
 
         return okay
 
     # not sure what this does
     def getEventLog(self):
-        buf = self.send([OPCODE_EVENT_LOG],verbose=True)
+        buf = self.send([SE_Opcode.EVENT_LOG],verbose=True)
         return buf
 
     # causes device reboot???
     def setDebug(self):
-        buf = self.send([OPCODE_DEBUG,0x1],verbose=True)
+        buf = self.send([SE_Opcode.DEBUG,0x1],verbose=True)
         return buf
 
     def __memoryErrorToStr(self, err_code):
@@ -593,7 +620,7 @@ class FuelbandSE(FuelbandBase):
         return "Unknown error"
 
     # Starts a block memory operation
-    # op_code - OPCODE_DESKTOP_DATA, OPCODE_UPLOAD_GRAPHICS_PACK, or OPCODE_MEMORY_EXT???
+    # op_code - SE_Opcode.DESKTOP_DATA, SE_Opcode.UPLOAD_GRAPHICS_PACK, or SE_Opcode.MEMORY_EXT???
     # start_sub_cmd - SUBCMD_START_READ or SUBCMD_START_WRITE
     def __memoryStartOperation(self, op_code, start_sub_cmd, **kwargs):
         verbose = kwargs.get('verbose',False)
@@ -608,7 +635,7 @@ class FuelbandSE(FuelbandBase):
             raise RuntimeError('Failed to end memory transaction! status = 0x%x (%s); buf = %s' % (buf[0],self.__memoryErrorToStr(buf[0]),buf))
 
     # Start a memory read operation
-    # op_code - OPCODE_DESKTOP_DATA, OPCODE_UPLOAD_GRAPHICS_PACK, or OPCODE_MEMORY_EXT???
+    # op_code - SE_Opcode.DESKTOP_DATA, SE_Opcode.UPLOAD_GRAPHICS_PACK, or SE_Opcode.MEMORY_EXT???
     def __memoryRead(self,op_code,addr,size, **kwargs):
         verbose = kwargs.get('verbose',False)
         warn_on_truncated = kwargs.get('warn_on_truncated',True)
@@ -649,10 +676,10 @@ class FuelbandSE(FuelbandBase):
         return read_data
 
     def readDesktopData(self,addr,size):
-        return self.__memoryRead(OPCODE_DESKTOP_DATA,addr,size,verbose=False,warn_on_truncated=False)
+        return self.__memoryRead(SE_Opcode.DESKTOP_DATA,addr,size,verbose=False,warn_on_truncated=False)
 
     def readGraphicsPackData(self,addr,size):
-        return self.__memoryRead(OPCODE_UPLOAD_GRAPHICS_PACK,addr,size,verbose=False)
+        return self.__memoryRead(SE_Opcode.UPLOAD_GRAPHICS_PACK,addr,size,verbose=False)
 
     def printStatus(self):
         # self.doVersion()
