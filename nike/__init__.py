@@ -314,23 +314,26 @@ class Fuelband(FuelbandBase):
         print('Timestamp goal-reset: %d (%s)' % (self.timestamp_lastgoalreset, utils.to_hex(self.timestamp_lastgoalreset_raw)))
 
 class SE_Opcode(Enum):
-    UNKNOWN5             = 0x01 # finish upload of graphics pack?
-    UNKNOWN1             = 0x02
-    VERSION              = 0x05
-    EVENT_LOG            = 0x07
-    BATTERY_STATE        = 0x06
-    RTC                  = 0x09
-    SETTING_GET          = 0x0a
-    SETTING_SET          = 0x0b
-    UNKNOWN4             = 0x0c
-    DEBUG                = 0x10
-    MEMORY_EXT           = 0x12
-    DESKTOP_DATA         = 0x13
-    UPLOAD_GRAPHIC       = 0x15
-    UPLOAD_GRAPHICS_PACK = 0x16
-    STATUS               = 0x20
-    UNKNOWN3             = 0x21
-    UNKNOWN2             = 0x60
+    RESET                  = 0x01
+    RESET_STATUS           = 0x02
+    VERSION                = 0x05
+    EVENT_LOG              = 0x07
+    BATTERY_STATE          = 0x06
+    RTC                    = 0x09
+    SETTING_GET            = 0x0a
+    SETTING_SET            = 0x0b
+    SELF_TEST              = 0x0c
+    DEBUG                  = 0x10
+    SAMPLE_STORE           = 0x11
+    MEMORY_EXT             = 0x12
+    DESKTOP_DATA           = 0x13
+    SESSION_CTRL           = 0x14
+    UPLOAD_GRAPHIC         = 0x15
+    UPLOAD_GRAPHICS_PACK   = 0x16
+    NOTIFICATION_SUBSCRIBE = 0x18
+    STATUS                 = 0x20
+    UNKNOWN3               = 0x21
+    UNKNOWN2               = 0x60
 
 # sub commands used with 'SE_Opcode.BATTERY_STATE'
 class SE_SubCmdBatt(Enum):
@@ -353,6 +356,16 @@ SUBCMD_WRITE_CHUNK = 1
 
 class SE_SubCmdSett(Enum):
     SERIAL_NUMBER = 0
+    BAND_COLOR = 1
+    BLE_ADDRESS = 2
+    BLE_XTAL_TRIM = 3
+    BLE_POWER_LEVEL = 4
+    ADC_CAL_VCC_MV = 5
+    ADC_CAL_VREFINT_CONV = 6
+    ADC_CAL_BAT_RATIO = 7
+    LED_ROW_BALANCE = 8
+    LED_DOT_CORRECTION = 9
+    ALS_BOOST = 10
     GOAL_0 = 40 # 0 to 6 for days of week (0 = monday)
     GOAL_1 = 41
     GOAL_2 = 42
@@ -360,36 +373,40 @@ class SE_SubCmdSett(Enum):
     GOAL_4 = 44
     GOAL_5 = 45
     GOAL_6 = 46
-    UNKNOWN12 = 47
+    TEMP_GOAL = 47
     FUEL = 48
-    UNKNOWN14 = 49
-    UNKNOWN13 = 50
-    UNKNOWN5 = 56
+    CALORIES = 49
+    STEPS = 50
+    DISTANCE = 51
+    ACTIVE_TIME = 52
+    USE_24HR_CLOCK = 56
     MENU_CALORIES = 57
     MENU_STEPS = 58
-    UNKNOWN6 = 59
+    MENU_GOAL = 59
+    MENU_FUEL_RATE = 60
     WEIGHT = 61
     HEIGHT = 62
     DATE_OF_BIRTH = 63
     GENDER = 64
     HANDEDNESS = 65 # orientation
-    UNKNOWN8 = 66
-    UNKNOWN9 = 67
-    UNKNOWN3 = 69
-    UNKNOWN4 = 70
+    ACCESS_TOKEN = 66
+    REFRESH_TOKEN = 67
+    TZ_SECONDS = 69
+    DST_MINUTES = 70
     UNKNOWN10 = 72
     UNKNOWN11 = 73
-    UNKNOWN18 = 75
-    UNKNOWN19 = 76
+    DISCOVERY_TOKEN = 75
+    BLE_AUTHENTICATION_KEY = 76
     UNKNOWN1 = 78
     UNKNOWN15 = 87
-    MENU_STARS = 89 # hours won
+    MENU_STARS = 89
+    HOURS_WON = 90
     UNKNOWN16 = 91
-    UNKNOWN7 = 92
+    MOVE_REMINDER_HOURS = 92
     LIFETIME_FUEL = 94
     UNKNOWN2 = 95
     FIRST_NAME = 97
-    UNKNOWN17 = 99
+    IN_SESSION_LED = 99
 
 class FuelbandSE(FuelbandBase):
     PID = 0x317d# Fuelband SE USB product id

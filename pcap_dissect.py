@@ -19,6 +19,13 @@ class ReportType(Enum):
     SET_REPORT = 0x00
     GET_REPORT = 0x80
 
+class RW_Mode(Enum):
+    READ = 0x00
+    WRITE = 0x01
+    UNKNOWN1 = 0x02
+    UNKNOWN_READ1 = 0x03 # finish read?
+    UNKNOWN_READ2 = 0x04 # used for desktop data only?
+
 class Packet(object):
     def __init__(self, id, data):
         self.id = id
@@ -29,40 +36,87 @@ class Packet(object):
 class Request(Packet):
     def __init__(self, pkt):
         super(Request, self).__init__(pkt.id, pkt.data)
+        self.pkt = pkt
 
         FB_CMD_OFFSET = 32 # 32 -> Mac, 36 -> Linux
         self.report_id = self.data[FB_CMD_OFFSET]
-        self.cmd_len = self.data[FB_CMD_OFFSET + 1]
+        self.req_len = self.data[FB_CMD_OFFSET + 1]
         self.tag = self.data[FB_CMD_OFFSET + 2]
-        self.cmd_buf = self.data[FB_CMD_OFFSET + 3:FB_CMD_OFFSET + 3 + self.cmd_len - 1]
-        self.opcode = nike.SE_Opcode(self.cmd_buf[0])
+        self.opcode = nike.SE_Opcode(self.data[FB_CMD_OFFSET + 3])
+        self.payload = self.data[FB_CMD_OFFSET + 4:FB_CMD_OFFSET + 4 + self.req_len - 1]
         self.subcmd_code = None
         self.subcmd_len = 0
         self.subcmd_val = []
         if self.opcode == nike.SE_Opcode.SETTING_SET:
-            self.subcmd_code = nike.SE_SubCmdSett(self.cmd_buf[1])
-            self.subcmd_len = int(self.cmd_buf[2])
-            self.subcmd_val = self.cmd_buf[3:3+self.subcmd_len]
+            self.subcmd_code = nike.SE_SubCmdSett(self.payload[0])
+            self.subcmd_len = int(self.payload[1])
+            self.subcmd_val = self.payload[2:2+self.subcmd_len]
         elif self.opcode == nike.SE_Opcode.SETTING_GET:
-            length = int(self.cmd_buf[1])
+            length = int(self.payload[0])
             if length != 1:
                 raise RuntimeError("SETTING_GET request should have length == 1, but it's %d" % length)
-            self.subcmd_code = nike.SE_SubCmdSett(self.cmd_buf[2])
+            self.subcmd_code = nike.SE_SubCmdSett(self.payload[1])
         elif self.opcode == nike.SE_Opcode.BATTERY_STATE:
-            self.subcmd_code = nike.SE_SubCmdBatt(self.cmd_buf[1])
+            self.subcmd_code = nike.SE_SubCmdBatt(self.payload[0])
 
-    def __str__(self):
-        out  = "report_id: 0x%02x " % self.report_id
-        out += "cmd_len: 0x%02x " % self.cmd_len
-        out += "tag: 0x%02x " % self.tag
-        out += "cmd_buf: %s " % utils.to_hex(self.cmd_buf)
-        return out
-    
-    def pretty_str(self):
+    def pretty_str(self, **kwargs):
         out  = "req - "
         out += "op: %s; " % self.opcode.name
-        out += "subcmd: %s; " % (self.subcmd_code.name if self.subcmd_code else 'None')
+        if self.subcmd_code:
+            out += "subcmd: %s; " % self.subcmd_code.name
+            out += "subcmd_len: %d; " % self.subcmd_len
+            if self.subcmd_len > 0:
+                out += "\n%s" % nike.utils.to_hex_with_ascii(self.subcmd_val, indent=4)
         return out
+
+class GraphicsPack(Request):
+    def __init__(self, pkt):
+        super(GraphicsPack, self).__init__(pkt.id, pkt.data)
+        self.index = int(self.payload[0])
+        self.address = utils.intFromLittleEndian(self.payload[1:2])
+        self.graphics_len = int(self.payload[3])
+        self.graphics_data = int(self.payload[4:])
+        if len(self.graphics_data) != self.graphics_len:
+            raise RuntimeError("graphics data length mismatch!")
+
+    def pretty_str(self, **kwargs):
+        out  = "req - "
+        out += "op: %s; " % self.opcode.name
+        out += "index: %d; " % self.index
+        out += "\n%s" % utils.to_hex_with_ascii(self.graphics_data, indent=4)
+        return out
+
+class GenericMemoryBlock(Request):
+    def __init__(self, pkt):
+        super(GenericMemoryBlock, self).__init__(pkt)
+        self.rw_mode = RW_Mode(self.payload[0])
+        self.address = utils.intFromLittleEndian(self.payload[1:3])
+        self.data_len = utils.intFromLittleEndian(self.payload[3:5])
+        self.data = []
+        if self.rw_mode == RW_Mode.WRITE:
+            self.data = self.payload[5:]
+            if len(self.data) != self.data_len:
+                print("WARN: data length mismatch! data_len = %d, but len(t) = %d" % (self.data_len, len(self.data)))
+
+    def pretty_str(self, **kwargs):
+        out  = "req - "
+        out += "op: %s (%s); " % (self.opcode.name, self.rw_mode.name)
+        out += "address: 0x%04x; " % self.address
+        out += "data_len: %d; " % self.data_len
+        if self.rw_mode == RW_Mode.WRITE:
+            out += "\n%s" % utils.to_hex_with_ascii(self.data, indent=4)
+        return out
+
+class UploadGraphicsPack(GenericMemoryBlock):
+    def __init__(self, pkt):
+        super(UploadGraphicsPack, self).__init__(pkt)
+
+def upcast_request(req):
+    if req.opcode == nike.SE_Opcode.UPLOAD_GRAPHICS_PACK:
+        return UploadGraphicsPack(req.pkt)
+    elif req.opcode == nike.SE_Opcode.DESKTOP_DATA:
+        return GenericMemoryBlock(req.pkt)
+    return req
 
 class Response(Packet):
     def __init__(self, pkt):
@@ -80,7 +134,7 @@ def dissect_pkt(id, data, verbose=False):
     pkt = Packet(id, data)
     if pkt.report_type == ReportType.SET_REPORT:
         if pkt.request_type == RequestType.COMPLETE:
-            req = Request(pkt)
+            req = upcast_request(Request(pkt))
             print(req.pretty_str())
 
 def dissect_file(pcap_file, **kwargs):
