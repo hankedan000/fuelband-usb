@@ -94,9 +94,7 @@ class GenericMemoryBlock(Request):
         self.data_len = utils.intFromLittleEndian(self.payload[3:5])
         self.data = []
         if self.rw_mode == RW_Mode.WRITE:
-            self.data = self.payload[5:]
-            if len(self.data) != self.data_len:
-                print("WARN: data length mismatch! data_len = %d, but len(t) = %d" % (self.data_len, len(self.data)))
+            self.data = self.payload[5:5+self.data_len]
 
     def pretty_str(self, **kwargs):
         out  = "req - "
