@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+from collections import deque
 from enum import Enum
 import argparse
 import nike
@@ -7,9 +8,10 @@ import nike.utils as utils
 MAX_BYTES_PER_LINE = 16
 
 # bytes offsets into txt file line
-DATA_IDX   = 6
-DATA_WIDTH = MAX_BYTES_PER_LINE * 3 - 1
-ASCII_IDX  = DATA_IDX + DATA_WIDTH + 3
+DATA_START_IDX   = 6
+DATA_WIDTH       = MAX_BYTES_PER_LINE * 3 - 1
+DATA_END_IDX     = DATA_START_IDX + DATA_WIDTH
+ASCII_START_IDX  = DATA_START_IDX + DATA_WIDTH + 3
 
 class RequestType(Enum):
     SUBMIT = 0x00
@@ -19,17 +21,11 @@ class ReportType(Enum):
     SET_REPORT = 0x00
     GET_REPORT = 0x80
 
-class RW_Mode(Enum):
-    READ = 0x00
-    WRITE = 0x01
-    UNKNOWN1 = 0x02
-    UNKNOWN_READ1 = 0x03 # finish read?
-    UNKNOWN_READ2 = 0x04 # used for desktop data only?
-
 class Packet(object):
     def __init__(self, id, data):
         self.id = id
-        self.data = data
+        self.data = bytearray()
+        self.data[:] = data # store copy of data
         self.request_type = RequestType(data[3])
         self.report_type = ReportType(data[30] & 0x80)
 
@@ -69,6 +65,13 @@ class Request(Packet):
                 out += "\n%s" % nike.utils.to_hex_with_ascii(self.subcmd_val, indent=4)
         return out
 
+class RW_Mode(Enum):
+    READ = 0x00
+    WRITE = 0x01
+    UNKNOWN1 = 0x02
+    UNKNOWN_READ1 = 0x03 # finish read?
+    UNKNOWN_READ2 = 0x04 # used for desktop data only?
+
 class GraphicsPack(Request):
     def __init__(self, pkt):
         super(GraphicsPack, self).__init__(pkt.id, pkt.data)
@@ -91,18 +94,18 @@ class GenericMemoryBlock(Request):
         super(GenericMemoryBlock, self).__init__(pkt)
         self.rw_mode = RW_Mode(self.payload[0])
         self.address = utils.intFromLittleEndian(self.payload[1:3])
-        self.data_len = utils.intFromLittleEndian(self.payload[3:5])
-        self.data = []
+        self.mem_len = utils.intFromLittleEndian(self.payload[3:5])
+        self.mem = []
         if self.rw_mode == RW_Mode.WRITE:
-            self.data = self.payload[5:5+self.data_len]
+            self.mem = self.payload[5:5+self.mem_len]
 
     def pretty_str(self, **kwargs):
         out  = "req - "
         out += "op: %s (%s); " % (self.opcode.name, self.rw_mode.name)
         out += "address: 0x%04x; " % self.address
-        out += "data_len: %d; " % self.data_len
+        out += "mem_len: %d; " % self.mem_len
         if self.rw_mode == RW_Mode.WRITE:
-            out += "\n%s" % utils.to_hex_with_ascii(self.data, indent=4)
+            out += "\n%s" % utils.to_hex_with_ascii(self.mem, indent=4)
         return out
 
 class UploadGraphicsPack(GenericMemoryBlock):
@@ -120,32 +123,44 @@ class Response(Packet):
     def __init__(self, pkt):
         super(Response, self).__init__(pkt.id, pkt.data)
 
-def dissect_pkt(id, data, verbose=False):
-    if verbose:
-        print("id: %d" % id)
-        print("data:")
-        print(utils.print_hex_with_ascii(data))
-
-    if len(data) < 35:
-        return
+class MemDump(object):
+    def __init__(self, size):
+        self.mem = bytearray(size)
     
-    pkt = Packet(id, data)
-    if pkt.report_type == ReportType.SET_REPORT:
-        if pkt.request_type == RequestType.COMPLETE:
-            req = upcast_request(Request(pkt))
-            print(req.pretty_str())
+    def resize(self, new_size):
+        old_mem = self.mem
+        self.mem = bytearray(new_size)
+        n_to_copy = min(new_size, len(old_mem))
+        for i in range(n_to_copy):
+            self.mem[i] = old_mem[i]
+    
+    def add_block(self, at_idx, block):
+        block_len = len(block)
+        req_size = at_idx + block_len
+        # resize our memory if block goes past the end
+        if req_size > len(self.mem):
+            self.resize(req_size)
+        # insert block into our memory at given start idx
+        for i in range(block_len):
+            self.mem[at_idx + i] = block[i]
 
-def dissect_file(pcap_file, **kwargs):
+def parse_pkts_from_file(pcap_file, **kwargs):
     max_pkts = kwargs.get('max_pkts', None)
+    verbose = kwargs.get('verbose', False)
+    
+    # parse packets from pcap text file
+    pkts = deque()
     pkt_data = bytearray()
     pkt_idx = 0
-    
-    DATA_START = DATA_IDX
-    DATA_END = DATA_IDX + DATA_WIDTH
     for line_num,line in enumerate(pcap_file):
-        if len(line) < DATA_END:
-            if len(pkt_data) > 0:
-                dissect_pkt(pkt_idx, pkt_data)
+        if len(line) < DATA_END_IDX:
+            if verbose:
+                print("pkt_idx: %d" % pkt_idx)
+                print("pkt_data:")
+                utils.print_hex_with_ascii(pkt_data)
+            
+            if len(pkt_data) >= 35:
+                pkts.append(Packet(pkt_idx, pkt_data))
                 pkt_idx += 1
 
                 if max_pkts and pkt_idx >= max_pkts:
@@ -155,8 +170,28 @@ def dissect_file(pcap_file, **kwargs):
         
         line = line.decode('utf-8')
         offset = int(line[0:4], 16)
-        data = utils.hex_row_to_bytes(line[DATA_START:DATA_END])
+        data = utils.hex_row_to_bytes(line[DATA_START_IDX:DATA_END_IDX])
         pkt_data += data
+    
+    return pkts
+
+def dissect_pkts(pkts, **kwargs):
+    gpack_file = kwargs.get('gpack_file', None)
+
+    gpack_mem = MemDump(64 * 1024)
+    for pkt in pkts:
+        if pkt.report_type != ReportType.SET_REPORT:
+            continue
+        if pkt.request_type != RequestType.COMPLETE:
+            continue
+
+        req = upcast_request(Request(pkt))
+        print(req.pretty_str())
+        if isinstance(req, UploadGraphicsPack):
+            gpack_mem.add_block(req.address, req.mem)
+    
+    if gpack_file:
+        gpack_file.write(gpack_mem.mem)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
@@ -173,9 +208,19 @@ if __name__ == "__main__":
         default=None,
         type=int,
         help="max number of packets to analyze")
+    
+    parser.add_argument(
+        '-g','--gpack-file',
+        default=None,
+        type=argparse.FileType('wb'),
+        help="graphics pack output file")
 
     args = parser.parse_args()
 
-    dissect_file(
+    pkts = parse_pkts_from_file(
         args.pcap,
         max_pkts=args.max_pkts)
+    
+    dissect_pkts(
+        pkts,
+        gpack_file=args.gpack_file)
