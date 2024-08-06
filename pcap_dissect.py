@@ -4,6 +4,7 @@ from enum import Enum
 import argparse
 import nike
 import nike.utils as utils
+import time
 
 MAX_BYTES_PER_LINE = 16
 
@@ -54,6 +55,21 @@ class Request(Packet):
             self.subcmd_code = nike.SE_SubCmdSett(self.payload[1])
         elif self.opcode == nike.SE_Opcode.BATTERY_STATE:
             self.subcmd_code = nike.SE_SubCmdBatt(self.payload[0])
+
+    # replay the request to a real fuelband device
+    # returns the response buffer from the device
+    def send_to_device(self, fb_dev):
+        cmd = [self.opcode]
+        # payload is bytearray and can't append lists with bytearrays,
+        # soooo.... lazily append bytes onto our command list
+        for data in self.payload:
+            cmd.append(data)
+        
+        # send it!
+        return fb_dev.send(
+            cmd,
+            report_id=self.report_id,
+            tag=self.tag)
 
     def pretty_str(self, **kwargs):
         out  = "req - "
@@ -175,6 +191,46 @@ def parse_pkts_from_file(pcap_file, **kwargs):
     
     return pkts
 
+# waits for fuelband device to reconnect to PC and returns it
+def wait_for_device(timeout=10):
+    for i in range(timeout):
+        fb = nike.open_fuelband()
+        if fb == None:
+            time.sleep(1.0)
+        else:
+            return fb
+    raise TimeoutError("couldn't open Fuelband after %ds" % timeout)
+
+def replay(pkts):
+    fb = nike.open_fuelband()
+    if fb == None:
+        print("No fuelband devices found")
+        exit(-1)
+    
+    bad_pkts = []
+    try:
+        for idx, pkt in enumerate(pkts):
+            if pkt.report_type != ReportType.SET_REPORT:
+                continue
+            if pkt.request_type != RequestType.COMPLETE:
+                continue
+
+            req = Request(pkt)
+            print("sending request #%d ..." % idx)
+            print(req.pretty_str())
+            # some requests cause device to reboot. catch the error due
+            # to reboot, wait for device to reconnect, and keep on going
+            try:
+                resp = req.send_to_device(fb)
+                print("resp: %s" % resp)
+            except OSError:
+                print("device seems to have rebooted on pkt #%d" % idx)
+                bad_pkts.append(idx)
+                fb = wait_for_device()
+    except KeyboardInterrupt:
+        pass
+    print("bad_pkts = %s" % bad_pkts)
+
 def dissect_pkts(pkts, **kwargs):
     gpack_file = kwargs.get('gpack_file', None)
 
@@ -214,6 +270,12 @@ if __name__ == "__main__":
         default=None,
         type=argparse.FileType('wb'),
         help="graphics pack output file")
+    
+    parser.add_argument(
+        '--replay',
+        default=False,
+        action='store_true',
+        help="replay pcap file to a connected Fuelband device")
 
     args = parser.parse_args()
 
@@ -221,6 +283,9 @@ if __name__ == "__main__":
         args.pcap,
         max_pkts=args.max_pkts)
     
-    dissect_pkts(
-        pkts,
-        gpack_file=args.gpack_file)
+    if args.replay:
+        replay(pkts)
+    else:
+        dissect_pkts(
+            pkts,
+            gpack_file=args.gpack_file)
