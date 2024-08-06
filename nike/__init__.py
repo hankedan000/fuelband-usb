@@ -37,6 +37,11 @@ class FuelbandBase():
         verbose = kwargs.get('verbose',False)
         report_id = kwargs.get('report_id',0x01)
 
+        # convert all enums in cmd to their integer values
+        for i in range(len(cmd)):
+            if isinstance(cmd[i], Enum):
+                cmd[i] = cmd[i].value
+
         # seems to be something that can get 'wrapped' backed in the
         # response packets... kinda of like a sequence id? initially i
         # i see them incrementing this number for each transaction from
@@ -527,7 +532,7 @@ class FuelbandSE(FuelbandBase):
             raise RuntimeError('invalid goal_idx must be >=0')
         elif goal_idx > 6:
             raise RuntimeError('invalid goal_idx must be <=6')
-        setting_code = SE_SubCmdSett.GOAL_0 + goal_idx
+        setting_code = SE_SubCmdSett.GOAL_0.value + goal_idx
         return self.setSetting(setting_code,utils.intToLittleEndian(goal,4))
 
     # goal_idx [0 to 6] (0 = monday)
@@ -536,7 +541,7 @@ class FuelbandSE(FuelbandBase):
             raise RuntimeError('invalid goal_idx must be >=0')
         elif goal_idx > 6:
             raise RuntimeError('invalid goal_idx must be <=6')
-        setting_code = SE_SubCmdSett.GOAL_0 + goal_idx
+        setting_code = SE_SubCmdSett.GOAL_0.value + goal_idx
         return utils.intFromLittleEndian(self.getSetting(setting_code))
 
     def setFirstname(self,name):
