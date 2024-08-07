@@ -2,7 +2,7 @@
 # requires hidapi:
 # https://github.com/trezor/cython-hidapi
 import hid
-import nike.utils
+import nike.utils as utils
 import datetime
 from enum import Enum
 
@@ -292,9 +292,9 @@ class Fuelband(FuelbandBase):
 
         print('Orientation: %s' % ("LEFT" if self.getOrientation() == 0 else "RIGHT"))
 
-        print('Goal (current): %d' % self.getGoal(nike.GOAL_TYPE_CURRENT))
+        print('Goal (current): %d' % self.getGoal(GOAL_TYPE_CURRENT))
 
-        print('Goal (tomorrow): %d' % self.getGoal(nike.GOAL_TYPE_TOMORROW))
+        print('Goal (tomorrow): %d' % self.getGoal(GOAL_TYPE_TOMORROW))
 
         print('Time: %s' % self.getTime())
 
@@ -796,7 +796,7 @@ def open_fuelband():
         device.set_nonblocking(1)
         return FuelbandSE(device)
     except IOError as ex:
-        # no fuelband 1 exists
+        # no fuelband 2 exists
         pass
 
     return None
