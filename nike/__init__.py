@@ -321,6 +321,7 @@ class Fuelband(FuelbandBase):
 class SE_Opcode(Enum):
     RESET                  = 0x01
     RESET_STATUS           = 0x02
+    FIRMWARE               = 0x04 # to upgrade firmware
     VERSION                = 0x05
     EVENT_LOG              = 0x07
     BATTERY_STATE          = 0x06
@@ -413,6 +414,34 @@ class SE_SubCmdSett(Enum):
     FIRST_NAME = 97
     IN_SESSION_LED = 99
 
+class MemoryError(RuntimeError):
+    def __init__(self, code, user_msg = ""):
+        self.user_msg = user_msg
+        self.err_code = code
+        self.err_msg = self.codeToStr(code)
+    
+    def __str__(self):
+        return "err_code %d (%s). %s" % (self.err_code, self.err_msg, self.user_msg)
+
+    def codeToStr(self, err_code):
+        if err_code == 0:
+            return "Success"
+        elif err_code == 1:
+            return "Request packet does not contain all required fields"
+        elif err_code == 2:
+            return "Request fields contain invalid values";
+        elif err_code == 3:
+            return "Transaction already in progress"
+        elif err_code == 4:
+            return "Request does not belong to a transaction"
+        elif err_code == 5:
+            return "Failed to open a transaction"
+        elif err_code == 6:
+            return "Failed to close a transaction"
+        elif err_code == 7:
+            return "I/O failed"
+        return "Unknown error"
+
 class FuelbandSE(FuelbandBase):
     PID = 0x317d# Fuelband SE USB product id
 
@@ -449,13 +478,17 @@ class FuelbandSE(FuelbandBase):
         # TODO could check status and wrapped command for validity
         return buf[4:]
 
+    def doFactoryReset(self):
+        self.send([SE_Opcode.RESET_STATUS])
+
     def getModelNumber(self):
         buf = self.send([SE_Opcode.VERSION])
         if len(buf) <= 0:
             print('Error getting model number: ', end='')
             utils.print_hex(buf)
             return None
-        # TODO there's definitely some extra info at the beginning of this reponse
+        # TODO there's definitely some extra info at the beginning of this reponse.
+        # based on ghidra disass, i think this might be the firmware version.
         return utils.to_ascii(buf[15:])
 
     def getSerialNumber(self):
@@ -572,8 +605,9 @@ class FuelbandSE(FuelbandBase):
     def getDateOfBirth(self):
         rsp = self.getSetting(SE_SubCmdSett.DATE_OF_BIRTH)
         year = utils.intFromLittleEndian(rsp[0:2])
-        month = rsp[2]
-        day = rsp[3]
+        year = min(datetime.MAXYEAR, max(datetime.MINYEAR, year))
+        month = min(12, max(1, rsp[2]))
+        day = min(31, max(1, rsp[3]))
         return datetime.date(year,month,day)
 
     def setGender(self,gender):
@@ -622,39 +656,20 @@ class FuelbandSE(FuelbandBase):
         buf = self.send([SE_Opcode.DEBUG,0x1],verbose=True)
         return buf
 
-    def __memoryErrorToStr(self, err_code):
-        if err_code == 0:
-            return "Success"
-        elif err_code == 1:
-            return "Request packet does not contain all required fields"
-        elif err_code == 2:
-            return "Request fields contain invalid values";
-        elif err_code == 3:
-            return "Transaction already in progress"
-        elif err_code == 4:
-            return "Request does not belong to a transaction"
-        elif err_code == 5:
-            return "Failed to open a transaction"
-        elif err_code == 6:
-            return "Failed to close a transaction"
-        elif err_code == 7:
-            return "I/O failed"
-        return "Unknown error"
-
     # Starts a block memory operation
     # op_code - SE_Opcode.DESKTOP_DATA, SE_Opcode.UPLOAD_GRAPHICS_PACK, or SE_Opcode.MEMORY_EXT???
     # start_sub_cmd - SUBCMD_START_READ or SUBCMD_START_WRITE
     def __memoryStartOperation(self, op_code, start_sub_cmd, **kwargs):
         verbose = kwargs.get('verbose',False)
         buf = self.send([op_code, start_sub_cmd, 0x01, 0x00],report_id=10,verbose=verbose)
-        if len(buf) != 1 and buf[0] != 0x00:
-            raise RuntimeError('Failed to start memory operation! status = 0x%x (%s); buf = %s' % (buf[0],self.__memoryErrorToStr(buf[0]),buf))
+        if len(buf) == 1 and buf[0] != 0x00:
+            raise MemoryError(buf[0], "Failed to start memory operation!")
 
     def __memoryEndTransaction(self, op_code, **kwargs):
         verbose = kwargs.get('verbose',False)
         buf = self.send([op_code, SUBCMD_END_TRANSACTION],report_id=10,verbose=verbose)
-        if len(buf) != 1 and buf[0] != 0x00:
-            raise RuntimeError('Failed to end memory transaction! status = 0x%x (%s); buf = %s' % (buf[0],self.__memoryErrorToStr(buf[0]),buf))
+        if len(buf) == 1 and buf[0] != 0x00:
+            raise MemoryError(buf[0], "Failed to end memory transaction!")
 
     # Start a memory read operation
     # op_code - SE_Opcode.DESKTOP_DATA, SE_Opcode.UPLOAD_GRAPHICS_PACK, or SE_Opcode.MEMORY_EXT???
@@ -678,16 +693,16 @@ class FuelbandSE(FuelbandBase):
             cmd_buf[5] = (bytes_this_read >> 8) & 0xff
             rsp = self.send(cmd_buf,report_id=10,verbose=verbose)
             if len(rsp) >= 1 and rsp[0] != 0x00:
-                raise RuntimeError('Read failed! status = 0x%x (%s)' % (rsp[0],self.__memoryErrorToStr(rsp[0])))
+                raise MemoryError(rsp[0], "Read failed!")
             if len(rsp) >= 2 and rsp[1] < bytes_this_read:
                 if warn_on_truncated:
                     print('WARN: truncated read! expected = %d; actual = %d' % (bytes_this_read,rsp[1]))
                 read_data += rsp[2:]
-                break;
+                break
             elif len(rsp) >= 2 and rsp[1] > bytes_this_read:
                 print('WARN: read size > than expected! expected = %d; actual = %d' % (bytes_this_read,rsp[1]))
                 read_data += rsp[2:]
-                break;
+                break
             else:
                 read_data += rsp[2:]
             bytes_remaining -= bytes_this_read
