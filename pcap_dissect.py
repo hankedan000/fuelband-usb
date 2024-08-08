@@ -201,35 +201,44 @@ def wait_for_device(timeout=10):
             return fb
     raise TimeoutError("couldn't open Fuelband after %ds" % timeout)
 
-def replay(pkts):
-    fb = nike.open_fuelband()
-    if fb == None:
-        print("No fuelband devices found")
-        exit(-1)
-    
+# extracts all Fuelband requests from pkts list
+def get_all_requests(pkts):
+    requests = deque()
+    for idx, pkt in enumerate(pkts):
+        if pkt.report_type != ReportType.SET_REPORT:
+            continue
+        if pkt.request_type != RequestType.COMPLETE:
+            continue
+
+        requests.append(Request(pkt))
+    return requests
+
+# replays request packets to a real fuelband device
+def replay(fb, requests, **kwargs):
+    verbose = kwargs.get('verbose', False)
+
     bad_pkts = []
     try:
-        for idx, pkt in enumerate(pkts):
-            if pkt.report_type != ReportType.SET_REPORT:
-                continue
-            if pkt.request_type != RequestType.COMPLETE:
-                continue
-
-            req = Request(pkt)
-            print("sending request #%d ..." % idx)
-            print(req.pretty_str())
+        for idx, req in enumerate(requests):
+            if verbose:
+                print("sending request #%d ..." % idx)
+                print(req.pretty_str())
             # some requests cause device to reboot. catch the error due
             # to reboot, wait for device to reconnect, and keep on going
             try:
                 resp = req.send_to_device(fb)
-                print("resp: %s" % resp)
+                if verbose:
+                    print("resp: %s" % resp)
             except OSError:
-                print("device seems to have rebooted on pkt #%d" % idx)
+                if verbose:
+                    print("device seems to have rebooted on pkt #%d" % idx)
                 bad_pkts.append(idx)
                 fb = wait_for_device()
     except KeyboardInterrupt:
         pass
-    print("bad_pkts = %s" % bad_pkts)
+    if verbose:
+        print("bad_pkts = %s" % bad_pkts)
+    return bad_pkts
 
 def dissect_pkts(pkts, **kwargs):
     gpack_file = kwargs.get('gpack_file', None)
@@ -284,7 +293,15 @@ if __name__ == "__main__":
         max_pkts=args.max_pkts)
     
     if args.replay:
-        replay(pkts)
+        fb = nike.open_fuelband()
+        if fb == None:
+            print("No fuelband devices found")
+            exit(-1)
+        
+        requests = get_all_requests(pkts)
+        print("replaying %d request(s) ..." % len(requests))
+        bad_pkts = replay(fb, requests)
+        print("done! %d bad packet(s)" % len(bad_pkts))
     else:
         dissect_pkts(
             pkts,

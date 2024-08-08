@@ -54,7 +54,6 @@ class FuelbandBase():
 
         if verbose: print("cmd: %s" % (utils.to_hex(cmd)))
         res = self.device.send_feature_report(cmd)
-        if res <= 0: print('Error sending feature report')
 
         buf = self.device.get_feature_report(0x01, 64)
         if verbose: print("rsp (hex):   %s" % (utils.to_hex(buf)))
