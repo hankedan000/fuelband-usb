@@ -11,6 +11,13 @@ def to_hex(buf):
         t_buf = t_buf + '%02x' % i
     return t_buf
 
+def hex_row_to_bytes(row, delim=' '):
+    bytes = bytearray()
+    for part in row.split(delim):
+        if len(part) > 0:
+            bytes.append(int(part, 16))
+    return bytes
+
 def print_ascii(buf, newline=False):
     for i in buf:
         print('%c' % i, end='')
@@ -33,23 +40,34 @@ def to_ascii_san(byte_buff):
         s = s + print_char
     return s
 
-def print_hex_with_ascii(buf, **kwargs):
+def to_hex_with_ascii(buf, **kwargs):
     bytes_per_line = kwargs.get('bytes_per_line',16)
+    indent = kwargs.get('indent',0)
+    
+    indent_str = ""
+    for i in range(indent):
+        indent_str += " "
 
     # build a format string for printing rows with hex portion padded with spaces
     row_hex_width = bytes_per_line * 3 # 3 chars per hex print
-    row_fmt_str = '0x%%04x | %%-%ds| %%s' % row_hex_width
+    row_fmt_str = '%s0x%%04x | %%-%ds| %%s' % (indent_str,row_hex_width)
 
     bytes_remaining = len(buf)
     offset = 0
+    out_str = ""
     while bytes_remaining:
         bytes_this_line = bytes_remaining
         if bytes_this_line > bytes_per_line:
             bytes_this_line = bytes_per_line
         buf_slice = buf[offset:(offset+bytes_this_line)]
-        print(row_fmt_str % (offset,to_hex(buf_slice),to_ascii_san(buf_slice)))
+        out_str += "\n" if len(out_str) > 0 else "" # add newline
+        out_str += row_fmt_str % (offset,to_hex(buf_slice),to_ascii_san(buf_slice))
         bytes_remaining -= bytes_this_line
         offset += bytes_this_line
+    return out_str
+
+def print_hex_with_ascii(buf, **kwargs):
+    print(to_hex_with_ascii(buf, **kwargs))
 
 def intFromBigEndian(buf):
     t_num = 0
