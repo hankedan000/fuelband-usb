@@ -338,7 +338,7 @@ class SE_Opcode(Enum):
     NOTIFICATION_SUBSCRIBE = 0x18
     STATUS                 = 0x20
     UNKNOWN3               = 0x21
-    UNKNOWN2               = 0x60
+    PROTOCOL               = 0x60 # protocol version (returns 6?)
 
 # sub commands used with 'SE_Opcode.BATTERY_STATE'
 class SE_SubCmdBatt(Enum):
@@ -353,11 +353,12 @@ SUBCMD_RTC_GET_DATE = 4
 SUBCMD_RTC_SET_TIME_DATE = 5
 
 # sub commands for doing memory read/write operations
-SUBCMD_END_TRANSACTION = 3
-SUBCMD_START_READ = 4
-SUBCMD_READ_CHUNK = 0
-SUBCMD_START_WRITE = 2
-SUBCMD_WRITE_CHUNK = 1
+class SE_MemCmds(Enum):
+    READ_CHUNK = 0
+    WRITE_CHUNK = 1
+    START_WRITE = 2
+    END_TRANSACTION = 3
+    START_READ = 4
 
 class SE_SubCmdSett(Enum):
     SERIAL_NUMBER = 0
@@ -657,16 +658,17 @@ class FuelbandSE(FuelbandBase):
 
     # Starts a block memory operation
     # op_code - SE_Opcode.DESKTOP_DATA, SE_Opcode.UPLOAD_GRAPHICS_PACK, or SE_Opcode.MEMORY_EXT???
-    # start_sub_cmd - SUBCMD_START_READ or SUBCMD_START_WRITE
-    def __memoryStartOperation(self, op_code, start_sub_cmd, **kwargs):
+    # is_read - true if starting a read, false for write
+    def __memoryStartOperation(self, op_code, is_read, **kwargs):
         verbose = kwargs.get('verbose',False)
-        buf = self.send([op_code, start_sub_cmd, 0x01, 0x00],report_id=10,verbose=verbose)
+        subcmd = SE_MemCmds.START_READ if is_read else SE_MemCmds.START_WRITE
+        buf = self.send([op_code, subcmd, 0x01, 0x00],report_id=10,verbose=verbose)
         if len(buf) == 1 and buf[0] != 0x00:
             raise MemoryError(buf[0], "Failed to start memory operation!")
 
     def __memoryEndTransaction(self, op_code, **kwargs):
         verbose = kwargs.get('verbose',False)
-        buf = self.send([op_code, SUBCMD_END_TRANSACTION],report_id=10,verbose=verbose)
+        buf = self.send([op_code, SE_MemCmds.END_TRANSACTION],report_id=10,verbose=verbose)
         if len(buf) == 1 and buf[0] != 0x00:
             raise MemoryError(buf[0], "Failed to end memory transaction!")
 
@@ -676,12 +678,12 @@ class FuelbandSE(FuelbandBase):
         verbose = kwargs.get('verbose',False)
         warn_on_truncated = kwargs.get('warn_on_truncated',True)
 
-        self.__memoryStartOperation(op_code,SUBCMD_START_READ,verbose=verbose)
+        self.__memoryStartOperation(op_code,True,verbose=verbose)
 
         read_data = []
         bytes_remaining = size
         offset = addr
-        cmd_buf = [op_code,SUBCMD_READ_CHUNK,0,0,0,0]
+        cmd_buf = [op_code,SE_MemCmds.READ_CHUNK,0,0,0,0]
         while bytes_remaining > 0:
             bytes_this_read = bytes_remaining
             if bytes_this_read > 58:

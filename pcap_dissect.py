@@ -81,13 +81,6 @@ class Request(Packet):
                 out += "\n%s" % nike.utils.to_hex_with_ascii(self.subcmd_val, indent=4)
         return out
 
-class RW_Mode(Enum):
-    READ = 0x00
-    WRITE = 0x01
-    UNKNOWN1 = 0x02
-    UNKNOWN_READ1 = 0x03 # finish read?
-    UNKNOWN_READ2 = 0x04 # used for desktop data only?
-
 class GraphicsPack(Request):
     def __init__(self, pkt):
         super(GraphicsPack, self).__init__(pkt.id, pkt.data)
@@ -108,11 +101,11 @@ class GraphicsPack(Request):
 class GenericMemoryBlock(Request):
     def __init__(self, pkt):
         super(GenericMemoryBlock, self).__init__(pkt)
-        self.rw_mode = RW_Mode(self.payload[0])
+        self.rw_mode = nike.SE_MemCmds(self.payload[0])
         self.address = utils.intFromLittleEndian(self.payload[1:3])
         self.mem_len = utils.intFromLittleEndian(self.payload[3:5])
         self.mem = []
-        if self.rw_mode == RW_Mode.WRITE:
+        if self.rw_mode == nike.SE_MemCmds.WRITE_CHUNK:
             self.mem = self.payload[5:5+self.mem_len]
 
     def pretty_str(self, **kwargs):
@@ -120,7 +113,7 @@ class GenericMemoryBlock(Request):
         out += "op: %s (%s); " % (self.opcode.name, self.rw_mode.name)
         out += "address: 0x%04x; " % self.address
         out += "mem_len: %d; " % self.mem_len
-        if self.rw_mode == RW_Mode.WRITE:
+        if self.rw_mode == nike.SE_MemCmds.WRITE_CHUNK:
             out += "\n%s" % utils.to_hex_with_ascii(self.mem, indent=4)
         return out
 
